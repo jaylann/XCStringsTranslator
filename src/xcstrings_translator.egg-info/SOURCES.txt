@@ -1,0 +1,13 @@
+README.md
+pyproject.toml
+src/xcstrings_translator/__init__.py
+src/xcstrings_translator/cli.py
+src/xcstrings_translator/models.py
+src/xcstrings_translator/translator.py
+src/xcstrings_translator.egg-info/PKG-INFO
+src/xcstrings_translator.egg-info/SOURCES.txt
+src/xcstrings_translator.egg-info/dependency_links.txt
+src/xcstrings_translator.egg-info/entry_points.txt
+src/xcstrings_translator.egg-info/requires.txt
+src/xcstrings_translator.egg-info/top_level.txt
+tests/test_translator.py
