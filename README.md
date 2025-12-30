@@ -41,8 +41,8 @@ xcstrings translate Localizable.xcstrings -l fr,de,ja
 | `gpt-5-mini` | OpenAI | $0.25 in / $2 out | Budget |
 | `gpt-5` | OpenAI | $1.25 in / $10 out | Quality |
 | `gemini-2.0-flash` | Google | $0.10 in / $0.40 out | Fast & cheap |
-| `gemini-2.5-flash` | Google | $0.30 in / $2.50 out | Balanced |
-| `gemini-2.5-pro` | Google | $1.25 in / $10 out | Quality |
+| `gemini-3-flash` | Google | $0.50 in / $3 out | Balanced |
+| `gemini-3-pro` | Google | $2 in / $12 out | Quality |
 
 ```bash
 xcstrings translate input.xcstrings -l fr -m haiku      # fast/cheap
