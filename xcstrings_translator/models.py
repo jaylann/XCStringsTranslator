@@ -123,10 +123,10 @@ class XCStringsFile(BaseModel):
     def _is_format_only(key: str) -> bool:
         """Check if a key is only format specifiers or symbols."""
         import re
-        # Remove format specifiers
-        cleaned = re.sub(r'%[\d$]*[@dlfse]', '', key)
-        cleaned = re.sub(r'%lld', '', cleaned)
+        # Remove format specifiers (order matters: %lld before general pattern)
+        cleaned = re.sub(r'%lld', '', key)
         cleaned = re.sub(r'%%', '', cleaned)
+        cleaned = re.sub(r'%[\d$]*[@dlfse]', '', cleaned)
         # Remove common symbols and punctuation
         cleaned = cleaned.strip(' •©+~/')
         # If nothing left, it's format-only
