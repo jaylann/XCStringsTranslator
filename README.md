@@ -162,3 +162,7 @@ print(f"Cost: ${translator.stats.input_tokens * 3 / 1e6 + translator.stats.outpu
 ## License
 
 MIT
+
+---
+
+<p align="center"><i>Made with ❤️ by <a href="https://lanfermann.dev">Justin Lanfermann</a></i></p>
