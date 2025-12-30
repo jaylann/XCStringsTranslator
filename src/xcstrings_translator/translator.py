@@ -1,7 +1,12 @@
 """
-Claude-powered translator for xcstrings files.
+AI-powered translator for xcstrings files.
 
-Uses Claude to translate strings intelligently by:
+Supports multiple AI providers via pydantic-ai:
+- Anthropic (Claude)
+- OpenAI (GPT)
+- Google (Gemini)
+
+Features:
 1. Providing context from existing translations (EN/DE)
 2. Preserving format specifiers (%@, %lld, etc.)
 3. Adapting to the app's tone and style
@@ -16,13 +21,10 @@ from typing import Any
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 import threading
-import time
-import random
-from json import JSONDecodeError
 from collections import deque
 
-from anthropic import Anthropic
 from pydantic import BaseModel, Field
+from pydantic_ai import Agent
 
 from .models import (
     XCStringsFile,
@@ -34,20 +36,79 @@ from .models import (
 )
 
 
-# Model configurations
-MODEL_CONFIGS = {
-    # Snapshot IDs from Anthropic docs (Models overview) as of 2025-12-13.
-    # Aliases (without the trailing date) automatically migrate to newer snapshots.
-    "opus": "claude-opus-4-5-20251101",
-    "sonnet": "claude-sonnet-4-5-20250929",
-    "haiku": "claude-haiku-4-5-20251001",
+# Model shorthand aliases -> provider:model format
+MODEL_ALIASES = {
+    # Anthropic Claude 4.5 (Nov 2025)
+    "opus": "anthropic:claude-opus-4-5",
+    "sonnet": "anthropic:claude-sonnet-4-5",
+    "haiku": "anthropic:claude-haiku-4-5",
+    # OpenAI GPT-5.2 (Dec 2025) - latest
+    "gpt-5.2": "openai:gpt-5.2",
+    "gpt-5.2-pro": "openai:gpt-5.2-pro",
+    # OpenAI GPT-5.1 (Nov 2025)
+    "gpt-5.1": "openai:gpt-5.1",
+    # OpenAI GPT-5 (Aug 2025)
+    "gpt-5": "openai:gpt-5",
+    "gpt-5-mini": "openai:gpt-5-mini",
+    "gpt-5-nano": "openai:gpt-5-nano",
+    # OpenAI reasoning models
+    "o3": "openai:o3",
+    "o4-mini": "openai:o4-mini",
+    # Google Gemini 3 (Dec 2025)
+    "gemini-3-pro": "google-gla:gemini-3-pro-preview",
+    "gemini-3-flash": "google-gla:gemini-3-flash-preview",
+    # Google Gemini 2.5
+    "gemini-2.5-pro": "google-gla:gemini-2.5-pro",
+    "gemini-2.5-flash": "google-gla:gemini-2.5-flash",
+    # Google Gemini 2.0 (legacy)
+    "gemini-2.0-flash": "google-gla:gemini-2.0-flash",
 }
 
-MODEL_ALIASES = {
-    "opus": "claude-opus-4-5",
-    "sonnet": "claude-sonnet-4-5",
-    "haiku": "claude-haiku-4-5",
+# For backward compatibility
+MODEL_CONFIGS = MODEL_ALIASES
+
+# Pricing per 1M tokens (as of Dec 2025)
+# Format: "provider:model" -> {"input": $, "output": $}
+MODEL_PRICING = {
+    # Anthropic Claude 4.5
+    "anthropic:claude-opus-4-5": {"input": 15.0, "output": 75.0},
+    "anthropic:claude-sonnet-4-5": {"input": 3.0, "output": 15.0},
+    "anthropic:claude-haiku-4-5": {"input": 1.0, "output": 5.0},
+    # OpenAI GPT-5.2 (Dec 2025)
+    "openai:gpt-5.2": {"input": 1.75, "output": 14.0},
+    "openai:gpt-5.2-pro": {"input": 1.75, "output": 14.0},
+    # OpenAI GPT-5.1 (Nov 2025)
+    "openai:gpt-5.1": {"input": 1.25, "output": 10.0},
+    # OpenAI GPT-5 family (Aug 2025)
+    "openai:gpt-5": {"input": 1.25, "output": 10.0},
+    "openai:gpt-5-mini": {"input": 0.25, "output": 2.0},
+    "openai:gpt-5-nano": {"input": 0.05, "output": 0.40},
+    # OpenAI reasoning models
+    "openai:o3": {"input": 0.40, "output": 1.60},
+    "openai:o4-mini": {"input": 1.10, "output": 4.40},
+    # Google Gemini 3 (Dec 2025)
+    "google-gla:gemini-3-pro-preview": {"input": 2.0, "output": 12.0},
+    "google-gla:gemini-3-flash-preview": {"input": 0.50, "output": 3.0},
+    # Google Gemini 2.5
+    "google-gla:gemini-2.5-pro": {"input": 1.25, "output": 10.0},
+    "google-gla:gemini-2.5-flash": {"input": 0.30, "output": 2.50},
+    # Google Gemini 2.0
+    "google-gla:gemini-2.0-flash": {"input": 0.10, "output": 0.40},
 }
+
+
+def get_model_cost(
+    model: str, input_tokens: int, output_tokens: int
+) -> float | None:
+    """Calculate cost for given model and token counts."""
+    resolved = resolve_model(model)
+    if resolved not in MODEL_PRICING:
+        return None
+    pricing = MODEL_PRICING[resolved]
+    return (
+        (input_tokens / 1_000_000) * pricing["input"]
+        + (output_tokens / 1_000_000) * pricing["output"]
+    )
 
 
 @dataclass
@@ -62,17 +123,42 @@ class TranslationStats:
     output_tokens: int = 0
 
 
+class TranslationItem(BaseModel):
+    """A single translation pair."""
+    key: str = Field(description="Original string key (unchanged)")
+    value: str = Field(description="Translated string value")
+
+
 class TranslationResult(BaseModel):
-    """Result from Claude for a batch of translations."""
-    translations: list[dict[str, str]]
+    """Result from AI model for a batch of translations."""
+    translations: list[TranslationItem] = Field(description="List of translated strings")
 
 class OutputParseError(RuntimeError):
     """Raised when the model output cannot be parsed as valid JSON."""
 
 
+def resolve_model(model: str) -> str:
+    """
+    Resolve a model shorthand or full name to provider:model format.
+
+    Examples:
+        "sonnet" -> "anthropic:claude-sonnet-4-5"
+        "gpt-4o" -> "openai:gpt-4o"
+        "anthropic:claude-sonnet-4-5" -> "anthropic:claude-sonnet-4-5" (unchanged)
+    """
+    # If already in provider:model format, return as-is
+    if ":" in model:
+        return model
+    # Check aliases
+    if model in MODEL_ALIASES:
+        return MODEL_ALIASES[model]
+    # Unknown model - return as-is (let pydantic-ai handle validation)
+    return model
+
+
 class XCStringsTranslator:
-    """Translator for xcstrings files using Claude."""
-    
+    """Translator for xcstrings files using AI models."""
+
     def __init__(
         self,
         model: str = "sonnet",
@@ -82,33 +168,22 @@ class XCStringsTranslator:
     ):
         """
         Initialize the translator.
-        
+
         Args:
-            model: Claude model to use (opus, sonnet, haiku)
+            model: Model to use. Can be:
+                - Shorthand: opus, sonnet, haiku, gpt-4o, gemini-2.0-flash
+                - Full format: anthropic:claude-sonnet-4-5, openai:gpt-4o
             batch_size: Number of strings to translate per API call
+            concurrency: Max parallel API requests
             app_context: Optional context about the app for better translations
         """
-        self.client = Anthropic()
-        self.model = MODEL_CONFIGS.get(model, model)
-        self.model_alias = MODEL_ALIASES.get(model, self._snapshot_to_alias(self.model))
+        self.model = resolve_model(model)
+        self.model_shorthand = model  # Keep original for display
         self.batch_size = batch_size
         self.concurrency = max(1, int(concurrency))
-        self.app_context = app_context or (
-            "An iOS app that converts PDF tickets and documents into Apple Wallet passes. "
-            "Tone: friendly, clear, reassuring about privacy."
-        )
+        self.app_context = app_context or "A mobile app. Tone: friendly, clear."
         self.stats = TranslationStats()
         self._stats_lock = threading.Lock()
-        self._model_lock = threading.Lock()
-
-    @staticmethod
-    def _snapshot_to_alias(model_id: str) -> str | None:
-        """
-        Convert a snapshot model ID like 'claude-sonnet-4-5-20250929' to its alias
-        'claude-sonnet-4-5'. Returns None if it doesn't look like a snapshot ID.
-        """
-        match = re.match(r"^(claude-(?:opus|sonnet|haiku)-4-5)-\d{8}$", model_id)
-        return match.group(1) if match else None
     
     def translate_file(
         self,
@@ -168,9 +243,7 @@ class XCStringsTranslator:
                     work_items.append((lang, batch))
 
         def translate_one(lang: str, batch: list[tuple[str, StringEntry, TranslationContext]]):
-            # Use a per-call client to avoid thread-safety issues.
-            client = Anthropic()
-            translations = self._translate_batch(batch, lang, client=client)
+            translations = self._translate_batch(batch, lang)
             return lang, translations, len(batch)
 
         pending: deque[tuple[str, list[tuple[str, StringEntry, TranslationContext]]]] = deque(work_items)
@@ -284,10 +357,9 @@ class XCStringsTranslator:
         self,
         batch: list[tuple[str, StringEntry, TranslationContext]],
         target_lang: str,
-        client: Anthropic | None = None,
     ) -> dict[str, str]:
-        """Translate a batch of strings using Claude."""
-        
+        """Translate a batch of strings using AI model via pydantic-ai."""
+
         # Build the translation request
         strings_data = []
         for key, entry, context in batch:
@@ -300,10 +372,10 @@ class XCStringsTranslator:
             if context.format_specifiers:
                 string_info["format_specifiers"] = context.format_specifiers
             strings_data.append(string_info)
-        
+
         target_lang_name = SUPPORTED_LANGUAGES.get(target_lang, target_lang)
-        
-        system_prompt = f"""You are an expert iOS app translator. Your task is to translate UI strings for an iOS app called NeatPass.
+
+        system_prompt = f"""You are an expert iOS app translator. Your task is to translate UI strings for an iOS app.
 
 APP CONTEXT:
 {self.app_context}
@@ -333,12 +405,7 @@ CRITICAL RULES:
 
 5. FOR PLURAL-SENSITIVE LANGUAGES:
    - Consider grammatical number agreement
-   - Format specifiers like %lld indicate numbers
-
-OUTPUT FORMAT:
-Return a JSON object with "translations" array containing objects with "key" and "value" fields.
-ONLY return the JSON, no explanation or markdown.
-The JSON MUST be strictly valid: escape quotes/newlines inside strings."""
+   - Format specifiers like %lld indicate numbers"""
 
         user_message = f"""Translate these iOS app strings to {target_lang_name}:
 
@@ -346,156 +413,40 @@ The JSON MUST be strictly valid: escape quotes/newlines inside strings."""
 {json.dumps(strings_data, ensure_ascii=False, indent=2)}
 ```
 
-        Return JSON with translations array. Each item must have "key" (the original key unchanged) and "value" (the translation)."""
-
-        client = client or self.client
-        model_id = self.model
-        model_alias = self.model_alias
-
-        def _create_message(model: str):
-            kwargs = dict(
-                model=model,
-                max_tokens=4096,
-                messages=[{"role": "user", "content": user_message}],
-                system=system_prompt,
-            )
-            # Try JSON mode when supported by the SDK.
-            try:
-                return client.messages.create(**kwargs, response_format={"type": "json_object"})
-            except TypeError:
-                return client.messages.create(**kwargs)
-
-        def _extract_json(text: str) -> str:
-            stripped = (text or "").strip()
-            if stripped.startswith("```json"):
-                stripped = stripped[7:]
-            if stripped.startswith("```"):
-                stripped = stripped[3:]
-            if stripped.endswith("```"):
-                stripped = stripped[:-3]
-            stripped = stripped.strip()
-            if stripped.startswith("{") and stripped.endswith("}"):
-                return stripped
-            start = stripped.find("{")
-            end = stripped.rfind("}")
-            if start != -1 and end != -1 and end > start:
-                return stripped[start : end + 1].strip()
-            return stripped
-
-        def _repair_json(invalid_json: str, error_text: str) -> str:
-            repair_system = "You fix invalid JSON into strict JSON. Output ONLY the corrected JSON object."
-            repair_user = (
-                "The following was supposed to be a JSON object with a top-level key "
-                "\"translations\" containing an array of objects with string fields \"key\" and \"value\".\n\n"
-                f"JSON parse error: {error_text}\n\n"
-                "Fix the JSON to be strictly valid. Do not change any keys; preserve all values as-is "
-                "(only add escaping/quotes/commas/brackets as needed).\n\n"
-                f"INVALID JSON:\n{invalid_json}"
-            )
-            kwargs = dict(
-                model=model_id,
-                max_tokens=4096,
-                messages=[{"role": "user", "content": repair_user}],
-                system=repair_system,
-            )
-            try:
-                response = client.messages.create(**kwargs, response_format={"type": "json_object"})
-            except TypeError:
-                response = client.messages.create(**kwargs)
-
-            usage = getattr(response, "usage", None)
-            if usage is not None:
-                with self._stats_lock:
-                    self.stats.input_tokens += int(getattr(usage, "input_tokens", 0) or 0)
-                    self.stats.output_tokens += int(getattr(usage, "output_tokens", 0) or 0)
-
-            blocks = getattr(response, "content", None) or []
-            text_parts: list[str] = []
-            for block in blocks:
-                block_text = getattr(block, "text", None)
-                if isinstance(block_text, str):
-                    text_parts.append(block_text)
-            return _extract_json("\n".join(text_parts).strip())
+Return the translations. Each item must have "key" (the original key unchanged) and "value" (the translation)."""
 
         try:
-            try:
-                response = _create_message(model_id)
-            except Exception as e:
-                # If a pinned snapshot is unavailable (404), retry once with the alias.
-                # This avoids breaking when Anthropic retires or migrates snapshots.
-                error_text = str(e)
-                if (
-                    model_alias
-                    and model_alias != model_id
-                    and ("not_found_error" in error_text or "404" in error_text)
-                ):
-                    response = _create_message(model_alias)
-                    with self._model_lock:
-                        self.model = model_alias
-                else:
-                    raise
+            # Create agent with structured output
+            agent: Agent[None, TranslationResult] = Agent(
+                self.model,
+                output_type=TranslationResult,
+                instructions=system_prompt,
+            )
 
-            # Track token usage (guarded for older/alternate SDK responses).
-            usage = getattr(response, "usage", None)
-            if usage is not None:
-                with self._stats_lock:
-                    self.stats.input_tokens += int(getattr(usage, "input_tokens", 0) or 0)
-                    self.stats.output_tokens += int(getattr(usage, "output_tokens", 0) or 0)
+            # Run synchronously
+            result = agent.run_sync(user_message)
 
-            # Extract text content (some SDKs return multiple blocks).
-            blocks = getattr(response, "content", None) or []
-            text_parts: list[str] = []
-            for block in blocks:
-                block_text = getattr(block, "text", None)
-                if isinstance(block_text, str):
-                    text_parts.append(block_text)
-            content = _extract_json("\n".join(text_parts).strip())
-            if not content:
-                raise ValueError("Model returned empty content")
+            # Track token usage
+            usage = result.usage()
+            with self._stats_lock:
+                self.stats.input_tokens += usage.request_tokens or 0
+                self.stats.output_tokens += usage.response_tokens or 0
 
-            parse_attempts = 0
-            last_parse_error: Exception | None = None
-            result: dict[str, Any] | None = None
-            while parse_attempts < 2:
-                try:
-                    result = json.loads(content)
-                    break
-                except Exception as pe:
-                    last_parse_error = pe
-                    parse_attempts += 1
-                    # Attempt a lightweight repair via the model, then re-parse.
-                    content = _repair_json(content, str(pe))
-                    # Tiny backoff to avoid hammering in tight loops during parallel runs.
-                    time.sleep(0.1 + random.random() * 0.2)
-
-            if result is None:
-                raise OutputParseError(str(last_parse_error or "Failed to parse JSON"))
-
-            raw_translations = result.get("translations")
-            if raw_translations is None:
-                raw_translations = []
-            if not isinstance(raw_translations, list):
-                raise ValueError("Invalid response: 'translations' must be a list")
-
+            # Extract translations from structured output
             translations: dict[str, str] = {}
-            for item in raw_translations:
-                if not isinstance(item, dict):
-                    continue
-                key = item.get("key")
-                value = item.get("value")
-                if isinstance(key, str) and isinstance(value, str) and key and value:
-                    translations[key] = value
+            for item in result.output.translations:
+                if item.key and item.value:
+                    translations[item.key] = item.value
 
             return translations
-        except Exception as e:
-            if isinstance(e, OutputParseError):
-                raise
 
-            parse_related = isinstance(e, (JSONDecodeError, ValueError)) and (
-                "parse" in str(e).lower()
-                or "json" in str(e).lower()
-                or "delimiter" in str(e).lower()
-                or "expecting" in str(e).lower()
+        except Exception as e:
+            error_str = str(e).lower()
+            parse_related = (
+                "parse" in error_str
+                or "json" in error_str
+                or "validation" in error_str
+                or "invalid" in error_str
             )
             if parse_related:
                 raise OutputParseError(str(e))
@@ -533,29 +484,12 @@ The JSON MUST be strictly valid: escape quotes/newlines inside strings."""
         # Estimate tokens (rough: ~50 tokens per string including context)
         estimated_input_tokens = total_strings * 100  # Input with context
         estimated_output_tokens = total_strings * 30   # Output
-        
-        # Cost per 1M tokens (as of 2025-12-13, Claude 4.5 pricing in docs)
-        costs = {
-            "opus": {"input": 5.0, "output": 25.0},
-            "sonnet": {"input": 3.0, "output": 15.0},
-            "haiku": {"input": 1.0, "output": 5.0},
-        }
-        
-        model_name = None
-        for name, model_id in MODEL_CONFIGS.items():
-            if model_id == self.model:
-                model_name = name
-                break
-        
-        if model_name and model_name in costs:
-            cost = costs[model_name]
-            estimated_cost = (
-                (estimated_input_tokens / 1_000_000) * cost["input"] +
-                (estimated_output_tokens / 1_000_000) * cost["output"]
-            )
-        else:
-            estimated_cost = None
-        
+
+        # Calculate cost based on model
+        estimated_cost = get_model_cost(
+            self.model, estimated_input_tokens, estimated_output_tokens
+        )
+
         return {
             "total_strings": len(translatable),
             "strings_per_language": strings_per_lang,

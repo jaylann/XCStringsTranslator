@@ -10,7 +10,7 @@ Usage:
 """
 
 from __future__ import annotations
-import json
+import re
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -19,14 +19,19 @@ from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 from rich.panel import Panel
-from rich import print as rprint
 
 from .models import XCStringsFile, SUPPORTED_LANGUAGES
-from .translator import XCStringsTranslator, MODEL_CONFIGS, MODEL_ALIASES
+from .translator import (
+    XCStringsTranslator,
+    MODEL_ALIASES,
+    MODEL_PRICING,
+    resolve_model,
+    get_model_cost,
+)
 
 app = typer.Typer(
     name="xcstrings",
-    help="Translate Apple Localizable.xcstrings files using Claude AI",
+    help="Translate Apple Localizable.xcstrings files using AI (Anthropic/OpenAI/Gemini)",
     add_completion=False,
 )
 console = Console()
@@ -126,20 +131,21 @@ def translate(
     input_file: Annotated[Path, typer.Argument(help="Input .xcstrings file")],
     languages: Annotated[str, typer.Option("-l", "--languages", help="Comma-separated language codes (e.g., fr,es,it)")] = None,
     output_file: Annotated[Optional[Path], typer.Option("-o", "--output", help="Output file (default: overwrites input)")] = None,
-    model: Annotated[str, typer.Option("-m", "--model", help="Claude model: opus, sonnet, haiku")] = "sonnet",
+    model: Annotated[str, typer.Option("-m", "--model", help="Model: sonnet, gpt-5, gemini-2.5-flash (or provider:model)")] = "sonnet",
     batch_size: Annotated[int, typer.Option("-b", "--batch-size", help="Strings per API call")] = 25,
     concurrency: Annotated[int, typer.Option("-c", "--concurrency", help="Max parallel API requests")] = 32,
     overwrite: Annotated[bool, typer.Option("--overwrite", help="Overwrite existing translations")] = False,
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Show what would be translated without doing it")] = False,
-    app_context: Annotated[Optional[str], typer.Option("--context", help="App description for better translations")] = None,
+    app_context: Annotated[Optional[str], typer.Option("--context", help="App description for better translations (or use context.md file)")] = None,
     fill_missing: Annotated[bool, typer.Option("--fill-missing", "-f", help="Auto-detect languages and only fill missing translations")] = False,
 ):
     """
-    Translate an xcstrings file to new languages using Claude AI.
-    
+    Translate an xcstrings file to new languages using AI.
+
     Examples:
         xcstrings translate Localizable.xcstrings -l fr,es,it
-        xcstrings translate input.xcstrings -l ja,ko -o output.xcstrings --model opus
+        xcstrings translate input.xcstrings -l ja,ko --model gpt-5
+        xcstrings translate input.xcstrings -l fr --model gemini-2.5-flash
         xcstrings translate input.xcstrings -l fr --dry-run
     """
     # Validate input file
@@ -187,9 +193,12 @@ def translate(
         console.print("Run [cyan]xcstrings languages[/cyan] to see supported languages.")
         raise typer.Exit(1)
     
-    # Validate model
-    if model not in MODEL_CONFIGS:
-        console.print(f"[red]Error:[/red] Invalid model: {model}. Choose from: {', '.join(MODEL_CONFIGS.keys())}")
+    # Validate model (accept aliases or provider:model format)
+    resolved = resolve_model(model)
+    if resolved not in MODEL_PRICING and ":" not in model:
+        console.print(f"[red]Error:[/red] Unknown model: {model}")
+        console.print(f"Shortcuts: {', '.join(MODEL_ALIASES.keys())}")
+        console.print("Or use provider:model format (e.g., openai:gpt-4o)")
         raise typer.Exit(1)
 
     # Load the xcstrings file (if not already loaded for fill_missing)
@@ -211,17 +220,19 @@ def translate(
     console.print(f"[green]✓[/green] Target languages: {', '.join(target_langs)}")
     if fill_missing:
         console.print(f"[green]✓[/green] Mode: Fill missing translations only")
-    console.print(f"[green]✓[/green] Model: {MODEL_CONFIGS[model]}")
+    console.print(f"[green]✓[/green] Model: {resolved}")
     
-    # Default app context for NeatPass
+    # Load app context: --context flag > context.md file > neutral default
     if not app_context:
-        app_context = """NeatPass - A privacy-focused iOS app that turns PDFs (tickets/documents) into Apple Wallet passes. Key features:
-- 100% on-device processing (no cloud uploads)
-- One-time purchase (no subscription)
-- Automatic barcode detection using ML
-- Privacy-first approach
-
-Tone: Friendly, casual, reassuring about privacy. Use informal "you" forms where applicable (du/tu/etc)."""
+        context_file = input_file.parent / "context.md"
+        if context_file.exists():
+            try:
+                app_context = context_file.read_text().strip()
+                console.print(f"[green]✓[/green] Loaded context from {context_file.name}")
+            except Exception:
+                pass
+        if not app_context:
+            app_context = "A mobile app. Tone: friendly, clear."
     
     # Initialize translator
     translator = XCStringsTranslator(
@@ -328,22 +339,8 @@ Tone: Friendly, casual, reassuring about privacy. Use informal "you" forms where
     table.add_row("Output tokens", f"{stats.output_tokens:,}")
     
     # Calculate cost
-    costs = {
-        # Claude 4.5 pricing (per 1M tokens), as of 2025-12-13 in Anthropic docs.
-        MODEL_CONFIGS["opus"]: {"input": 5.0, "output": 25.0},
-        MODEL_CONFIGS["sonnet"]: {"input": 3.0, "output": 15.0},
-        MODEL_CONFIGS["haiku"]: {"input": 1.0, "output": 5.0},
-        # Also accept aliases in case a run migrated to an alias fallback.
-        MODEL_ALIASES["opus"]: {"input": 5.0, "output": 25.0},
-        MODEL_ALIASES["sonnet"]: {"input": 3.0, "output": 15.0},
-        MODEL_ALIASES["haiku"]: {"input": 1.0, "output": 5.0},
-    }
-    if translator.model in costs:
-        cost = costs[translator.model]
-        total_cost = (
-            (stats.input_tokens / 1_000_000) * cost["input"] +
-            (stats.output_tokens / 1_000_000) * cost["output"]
-        )
+    total_cost = get_model_cost(translator.model, stats.input_tokens, stats.output_tokens)
+    if total_cost is not None:
         table.add_row("Estimated cost", f"${total_cost:.3f}")
     
     console.print(table)
@@ -429,7 +426,7 @@ def languages():
 def estimate(
     input_file: Annotated[Path, typer.Argument(help="Input .xcstrings file")],
     languages: Annotated[str, typer.Option("-l", "--languages", help="Comma-separated language codes")] = None,
-    model: Annotated[str, typer.Option("-m", "--model", help="Claude model")] = "sonnet",
+    model: Annotated[str, typer.Option("-m", "--model", help="Model (sonnet, gpt-4o, etc.)")] = "sonnet",
 ):
     """
     Estimate the cost of translating an xcstrings file.
@@ -474,25 +471,37 @@ def estimate(
     
     # Show all models comparison
     console.print("\n[cyan]Cost by model:[/cyan]")
-    
+
     comparison = Table()
     comparison.add_column("Model", style="cyan")
     comparison.add_column("Est. Cost", style="green")
-    comparison.add_column("Speed", style="yellow")
-    
-    costs = {
-        "haiku": {"input": 1.0, "output": 5.0, "speed": "Fastest"},
-        "sonnet": {"input": 3.0, "output": 15.0, "speed": "Balanced"},
-        "opus": {"input": 5.0, "output": 25.0, "speed": "Best quality"},
+    comparison.add_column("Notes", style="yellow")
+
+    model_notes = {
+        "gpt-5-nano": "Cheapest",
+        "gemini-2.0-flash": "Very cheap",
+        "gpt-5-mini": "Cheap, fast",
+        "gemini-2.5-flash": "Cheap, fast",
+        "o3": "Reasoning, cheap",
+        "gemini-3-flash": "Fast, quality",
+        "haiku": "Fast, balanced",
+        "gpt-5.1": "Quality",
+        "gemini-2.5-pro": "Quality",
+        "sonnet": "Balanced (default)",
+        "gpt-5.2": "Latest OpenAI",
+        "gemini-3-pro": "Latest Gemini",
+        "opus": "Best quality",
     }
-    
-    for model_name, cost_info in costs.items():
-        est_cost = (
-            (estimate["estimated_input_tokens"] / 1_000_000) * cost_info["input"] +
-            (estimate["estimated_output_tokens"] / 1_000_000) * cost_info["output"]
+
+    for model_name in model_notes:
+        est_cost = get_model_cost(
+            model_name,
+            estimate["estimated_input_tokens"],
+            estimate["estimated_output_tokens"],
         )
-        comparison.add_row(model_name, f"${est_cost:.2f}", cost_info["speed"])
-    
+        if est_cost is not None:
+            comparison.add_row(model_name, f"${est_cost:.2f}", model_notes[model_name])
+
     console.print(comparison)
 
 
@@ -532,7 +541,6 @@ def validate(
             warnings.append(f"{lang}: {len(missing)} missing translations")
     
     # Check for format specifier mismatches
-    import re
     for key, entry in translatable:
         source_specs = re.findall(r'%[\d$]*[@dlfse]|%lld|%%', key)
         
