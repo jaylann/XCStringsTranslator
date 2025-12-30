@@ -31,3 +31,6 @@ htmlcov/
 
 # Local config
 .env
+
+# Logs
+*.log
