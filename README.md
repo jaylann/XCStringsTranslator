@@ -1,6 +1,6 @@
 # XCStrings Translator
 
-AI-powered translation tool for Apple's `Localizable.xcstrings` files using Claude.
+AI-powered translation tool for Apple's `Localizable.xcstrings` files. Supports Claude, GPT, and Gemini.
 
 ## What is xcstrings?
 
@@ -43,7 +43,7 @@ AI-powered translation tool for Apple's `Localizable.xcstrings` files using Clau
 
 ## Features
 
-- 🤖 **Claude-powered translation** - Uses Claude 4.5 models for high-quality, context-aware translations
+- 🤖 **Multi-provider AI** - Claude (Anthropic), GPT (OpenAI), or Gemini (Google)
 - 🎯 **Context-aware** - Uses existing translations (EN/DE) to understand meaning
 - 📝 **Format specifier preservation** - Correctly handles `%@`, `%lld`, `%1$@`, etc.
 - 🌍 **35+ languages supported** - All major App Store languages
@@ -54,22 +54,30 @@ AI-powered translation tool for Apple's `Localizable.xcstrings` files using Clau
 ## Installation
 
 ```bash
-# Clone or extract the project
+pip install xcstrings-translator
+```
+
+Or install from source:
+
+```bash
+git clone https://github.com/yourusername/xcstrings-translator
 cd xcstrings-translator
-
-# Install with pip
 pip install -e .
-
-# Or install dependencies only
-pip install anthropic pydantic typer rich
 ```
 
 ## Setup
 
-Set your Anthropic API key:
+Set your API key for the provider you want to use:
 
 ```bash
+# For Claude (default)
 export ANTHROPIC_API_KEY=your-key-here
+
+# For OpenAI
+export OPENAI_API_KEY=your-key-here
+
+# For Google Gemini
+export GOOGLE_API_KEY=your-key-here
 ```
 
 ## Usage
@@ -90,14 +98,18 @@ xcstrings translate Localizable.xcstrings -l fr,es -o Translated.xcstrings
 ### Model Selection
 
 ```bash
-# Use Haiku (fastest, cheapest)
-xcstrings translate Localizable.xcstrings -l fr -m haiku
-
-# Use Sonnet (default, balanced)
+# Claude (Anthropic) - default
 xcstrings translate Localizable.xcstrings -l fr -m sonnet
+xcstrings translate Localizable.xcstrings -l fr -m haiku   # faster/cheaper
+xcstrings translate Localizable.xcstrings -l fr -m opus    # highest quality
 
-# Use Opus (highest quality)
-xcstrings translate Localizable.xcstrings -l fr -m opus
+# OpenAI
+xcstrings translate Localizable.xcstrings -l fr -m gpt-5
+xcstrings translate Localizable.xcstrings -l fr -m gpt-5-mini
+
+# Google Gemini
+xcstrings translate Localizable.xcstrings -l fr -m gemini-2.5-flash
+xcstrings translate Localizable.xcstrings -l fr -m gemini-2.5-pro
 ```
 
 ### Cost Estimation
@@ -148,12 +160,12 @@ xcstrings languages
 |--------|-------------|---------|
 | `-l, --languages` | Comma-separated language codes | Required |
 | `-o, --output` | Output file path | Overwrites input |
-| `-m, --model` | Claude model (haiku/sonnet/opus) | sonnet |
+| `-m, --model` | AI model (see Model Selection) | sonnet |
 | `-b, --batch-size` | Strings per API call | 25 |
 | `-c, --concurrency` | Max parallel API requests | 32 |
 | `--overwrite` | Overwrite existing translations | False |
 | `--dry-run` | Show estimate without translating | False |
-| `--context` | Custom app description | NeatPass default |
+| `--context` | Custom app description | context.md or generic |
 
 ## Supported Languages
 
@@ -204,16 +216,23 @@ xcstrings languages
 
 Per 1M tokens:
 
-| Model | Input | Output | Speed |
-|-------|-------|--------|-------|
-| Haiku | $1.00 | $5.00 | Fastest |
-| Sonnet | $3.00 | $15.00 | Balanced |
-| Opus | $5.00 | $25.00 | Best quality |
+| Provider | Model | Input | Output |
+|----------|-------|-------|--------|
+| Anthropic | haiku | $1.00 | $5.00 |
+| Anthropic | sonnet | $3.00 | $15.00 |
+| Anthropic | opus | $15.00 | $75.00 |
+| OpenAI | gpt-5-nano | $0.05 | $0.40 |
+| OpenAI | gpt-5-mini | $0.25 | $2.00 |
+| OpenAI | gpt-5 | $1.25 | $10.00 |
+| Google | gemini-2.0-flash | $0.10 | $0.40 |
+| Google | gemini-2.5-flash | $0.30 | $2.50 |
+| Google | gemini-2.5-pro | $1.25 | $10.00 |
 
 Typical cost for ~200 strings to 5 languages:
-- Haiku: ~$0.06
-- Sonnet: ~$0.20
-- Opus: ~$0.33
+- gpt-5-nano: ~$0.01
+- gemini-2.0-flash: ~$0.02
+- haiku: ~$0.06
+- sonnet: ~$0.20
 
 ## Python API
 
@@ -283,10 +302,25 @@ xcstrings translate input.xcstrings -l ja,ko,zh-Hans,zh-Hant
 
 ### 4. Provide app context
 
+Create a `context.md` file next to your xcstrings file:
+
+```markdown
+# My Fitness App
+
+A fitness tracking app for athletes.
+
+Tone: Motivational, energetic, supportive.
+Use informal "you" forms (du/tu/etc).
+```
+
+Or pass context directly:
+
 ```bash
 xcstrings translate input.xcstrings -l fr \
   --context "A fitness tracking app with motivational tone"
 ```
+
+Priority: `--context` flag > `context.md` file > generic default
 
 ### 5. Validate after translation
 
@@ -336,7 +370,10 @@ xcstrings validate Localizable.xcstrings
 
 ### API errors
 
-- Check your `ANTHROPIC_API_KEY` is set
+- Check the correct API key is set for your model:
+  - Claude: `ANTHROPIC_API_KEY`
+  - OpenAI: `OPENAI_API_KEY`
+  - Gemini: `GOOGLE_API_KEY`
 - Verify you have API credits
 - Try reducing batch size: `-b 10`
 
