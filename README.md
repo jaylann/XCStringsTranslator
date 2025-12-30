@@ -110,7 +110,7 @@ xcstrings translate input.xcstrings -l fr --context "A fitness app with motivati
 ## Python API
 
 ```python
-from xcstrings_translator import XCStringsFile, XCStringsTranslator
+from src import XCStringsFile, XCStringsTranslator
 
 # Load
 xcstrings = XCStringsFile.from_file("Localizable.xcstrings")

@@ -1,4 +1,4 @@
-"""Tests for xcstrings_translator.cli - CLI commands."""
+"""Tests for src.cli - CLI commands."""
 
 import json
 import pytest
@@ -7,14 +7,14 @@ from unittest.mock import patch, MagicMock
 
 from typer.testing import CliRunner
 
-from xcstrings_translator.cli import (
+from src.cli import (
     app,
     _canonicalize_bcp47_tag,
     _normalize_language_tag,
     _parse_target_languages,
 )
-from xcstrings_translator.models import SUPPORTED_LANGUAGES
-from xcstrings_translator.translator import TranslationResult, TranslationItem
+from src.models import SUPPORTED_LANGUAGES
+from src.translator import TranslationResult, TranslationItem
 
 
 runner = CliRunner()
@@ -164,7 +164,7 @@ class TestTranslateCommand:
         """Successful translation with mocked API."""
         output_file = tmp_path / "output.xcstrings"
 
-        with patch("xcstrings_translator.cli.XCStringsTranslator") as MockTranslator:
+        with patch("src.cli.XCStringsTranslator") as MockTranslator:
             mock_instance = MagicMock()
             mock_instance.stats = MagicMock(
                 translated=2, skipped_existing=0, errors=0,
@@ -353,7 +353,7 @@ class TestContextLoading:
 
     def test_context_from_flag(self, sample_xcstrings_file):
         """--context flag takes precedence."""
-        with patch("xcstrings_translator.cli.XCStringsTranslator") as MockTranslator:
+        with patch("src.cli.XCStringsTranslator") as MockTranslator:
             mock_instance = MagicMock()
             mock_instance.estimate_cost.return_value = {
                 "total_strings": 2,
@@ -384,7 +384,7 @@ class TestContextLoading:
         context_file = sample_xcstrings_file.parent / "context.md"
         context_file.write_text("Context from file")
 
-        with patch("xcstrings_translator.cli.XCStringsTranslator") as MockTranslator:
+        with patch("src.cli.XCStringsTranslator") as MockTranslator:
             mock_instance = MagicMock()
             mock_instance.estimate_cost.return_value = {
                 "total_strings": 2,

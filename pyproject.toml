@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-xcstrings = "xcstrings_translator.cli:app"
+xcstrings = "src.cli:app"
 
 [project.optional-dependencies]
 dev = [

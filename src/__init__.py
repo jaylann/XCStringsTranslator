@@ -2,7 +2,7 @@
 XCStrings Translator - Translate Apple Localizable.xcstrings files using Claude AI.
 
 Usage:
-    from xcstrings_translator import XCStringsFile, XCStringsTranslator
+    from src import XCStringsFile, XCStringsTranslator
     
     # Load file
     xcstrings = XCStringsFile.from_file("Localizable.xcstrings")
