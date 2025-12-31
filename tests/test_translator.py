@@ -1,9 +1,9 @@
-"""Tests for src.translator - Translation engine."""
+"""Tests for xcstrings_translator.translator - Translation engine."""
 
 import pytest
 from unittest.mock import MagicMock, patch
 
-from src.models import (
+from xcstrings_translator.models import (
     Localization,
     StringEntry,
     StringUnit,
@@ -11,7 +11,7 @@ from src.models import (
     XCStringsFile,
     SUPPORTED_LANGUAGES,
 )
-from src.translator import (
+from xcstrings_translator.translator import (
     XCStringsTranslator,
     resolve_model,
     get_model_cost,
@@ -22,7 +22,7 @@ from src.translator import (
     TranslationStats,
     OutputParseError,
 )
-from src.cli import _normalize_language_tag
+from xcstrings_translator.cli import _normalize_language_tag
 
 
 class TestModelResolution:
@@ -327,7 +327,7 @@ class TestTranslateBatch:
 
     def test_translate_batch_parse_error(self):
         """OutputParseError raised on JSON parse failure."""
-        with patch("src.translator.Agent") as MockAgent:
+        with patch("xcstrings_translator.translator.Agent") as MockAgent:
             mock_instance = MagicMock()
             mock_instance.run_sync.side_effect = Exception("json parse error")
             MockAgent.return_value = mock_instance
@@ -482,7 +482,7 @@ class TestBatchSplitting:
             result.usage.return_value = usage
             return result
 
-        with patch("src.translator.Agent") as MockAgent:
+        with patch("xcstrings_translator.translator.Agent") as MockAgent:
             mock_instance = MagicMock()
             mock_instance.run_sync.side_effect = mock_run_sync
             MockAgent.return_value = mock_instance

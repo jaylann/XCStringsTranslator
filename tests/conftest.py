@@ -5,13 +5,13 @@ import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from src.models import (
+from xcstrings_translator.models import (
     XCStringsFile,
     StringEntry,
     StringUnit,
     Localization,
 )
-from src.translator import TranslationResult, TranslationItem
+from xcstrings_translator.translator import TranslationResult, TranslationItem
 
 
 @pytest.fixture
@@ -148,7 +148,7 @@ def xcstrings_format_only_keys() -> XCStringsFile:
 @pytest.fixture
 def mock_agent():
     """Mock pydantic-ai Agent for translation tests."""
-    with patch("src.translator.Agent") as MockAgent:
+    with patch("xcstrings_translator.translator.Agent") as MockAgent:
         mock_instance = MagicMock()
         mock_result = MagicMock()
 
@@ -177,7 +177,7 @@ def mock_agent_with_custom_response():
     """Factory fixture for customizing mock Agent responses."""
 
     def _create_mock(translations: list[tuple[str, str]], input_tokens: int = 100, output_tokens: int = 50):
-        with patch("src.translator.Agent") as MockAgent:
+        with patch("xcstrings_translator.translator.Agent") as MockAgent:
             mock_instance = MagicMock()
             mock_result = MagicMock()
 

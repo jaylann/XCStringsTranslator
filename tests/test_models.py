@@ -1,10 +1,10 @@
-"""Tests for src.models - File I/O and data models."""
+"""Tests for xcstrings_translator.models - File I/O and data models."""
 
 import json
 import pytest
 from pathlib import Path
 
-from src.models import (
+from xcstrings_translator.models import (
     XCStringsFile,
     StringEntry,
     StringUnit,
