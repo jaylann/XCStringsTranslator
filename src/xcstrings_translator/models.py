@@ -168,6 +168,7 @@ SUPPORTED_LANGUAGES = {
     "it": "Italian (Italiano)",
     "pt": "Portuguese (Português)",
     "pt-BR": "Brazilian Portuguese (Português do Brasil)",
+    "pt-PT": "European Portuguese (Português Europeu)",
     "nl": "Dutch (Nederlands)",
     "pl": "Polish (Polski)",
     "sv": "Swedish (Svenska)",
