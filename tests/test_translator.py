@@ -15,8 +15,6 @@ from xcstrings_translator.translator import (
     XCStringsTranslator,
     resolve_model,
     get_model_cost,
-    MODEL_ALIASES,
-    MODEL_PRICING,
     TranslationResult,
     TranslationItem,
     TranslationStats,
@@ -38,7 +36,10 @@ class TestModelResolution:
 
     def test_resolve_model_full_format_unchanged(self):
         """Full provider:model format is returned unchanged."""
-        assert resolve_model("anthropic:claude-sonnet-4-5") == "anthropic:claude-sonnet-4-5"
+        assert (
+            resolve_model("anthropic:claude-sonnet-4-5")
+            == "anthropic:claude-sonnet-4-5"
+        )
         assert resolve_model("openai:gpt-4o") == "openai:gpt-4o"
 
     def test_resolve_model_unknown_passthrough(self):
@@ -141,7 +142,7 @@ class TestBuildContext:
             localizations={
                 "en": Localization(stringUnit=StringUnit(value="Hello %@")),
                 "de": Localization(stringUnit=StringUnit(value="Hallo %@")),
-            }
+            },
         )
 
         ctx = translator._build_context("Hello %@", entry)
@@ -168,7 +169,9 @@ class TestBuildContext:
         translator = XCStringsTranslator(model="sonnet")
         entry = StringEntry(
             localizations={
-                "en": Localization(stringUnit=StringUnit(value="%1$@ and %2$lld items")),
+                "en": Localization(
+                    stringUnit=StringUnit(value="%1$@ and %2$lld items")
+                ),
             }
         )
 
@@ -263,7 +266,9 @@ class TestEstimateCost:
 
         estimate = translator.estimate_cost(xc, ["fr"])
 
-        assert estimate["strings_per_language"]["fr"] == 1  # Only World needs translation
+        assert (
+            estimate["strings_per_language"]["fr"] == 1
+        )  # Only World needs translation
 
 
 class TestTranslationStats:
@@ -336,7 +341,9 @@ class TestTranslateBatch:
             entry = StringEntry(
                 localizations={"en": Localization(stringUnit=StringUnit(value="Test"))}
             )
-            context = TranslationContext(key="Test", existing_translations={"en": "Test"})
+            context = TranslationContext(
+                key="Test", existing_translations={"en": "Test"}
+            )
 
             with pytest.raises(OutputParseError):
                 translator._translate_batch([("Test", entry, context)], "fr")
@@ -345,7 +352,9 @@ class TestTranslateBatch:
 class TestTranslateFile:
     """Tests for XCStringsTranslator.translate_file() with mocked Agent."""
 
-    def test_translate_file_single_language(self, mock_agent, xcstrings_with_translations):
+    def test_translate_file_single_language(
+        self, mock_agent, xcstrings_with_translations
+    ):
         """Full translation flow with one target language."""
         MockAgent, mock_instance, mock_result = mock_agent
 

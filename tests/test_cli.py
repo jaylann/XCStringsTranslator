@@ -1,8 +1,6 @@
 """Tests for xcstrings_translator.cli - CLI commands."""
 
 import json
-import pytest
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from typer.testing import CliRunner
@@ -14,8 +12,6 @@ from xcstrings_translator.cli import (
     _parse_target_languages,
 )
 from xcstrings_translator.models import SUPPORTED_LANGUAGES
-from xcstrings_translator.translator import TranslationResult, TranslationItem
-
 
 runner = CliRunner()
 
@@ -119,7 +115,9 @@ class TestTranslateCommand:
 
     def test_file_not_found(self, tmp_path):
         """Exit 1 when input file doesn't exist."""
-        result = runner.invoke(app, ["translate", str(tmp_path / "nonexistent.xcstrings"), "-l", "fr"])
+        result = runner.invoke(
+            app, ["translate", str(tmp_path / "nonexistent.xcstrings"), "-l", "fr"]
+        )
 
         assert result.exit_code == 1
         assert "not found" in result.output.lower()
@@ -133,28 +131,41 @@ class TestTranslateCommand:
 
     def test_invalid_language(self, sample_xcstrings_file):
         """Exit 1 for unsupported language."""
-        result = runner.invoke(app, ["translate", str(sample_xcstrings_file), "-l", "xx-invalid"])
+        result = runner.invoke(
+            app, ["translate", str(sample_xcstrings_file), "-l", "xx-invalid"]
+        )
 
         assert result.exit_code == 1
         assert "unsupported" in result.output.lower()
 
-    def test_fill_missing_with_languages_mutually_exclusive(self, sample_xcstrings_file):
+    def test_fill_missing_with_languages_mutually_exclusive(
+        self, sample_xcstrings_file
+    ):
         """Exit 1 when both --fill-missing and -l provided."""
-        result = runner.invoke(app, ["translate", str(sample_xcstrings_file), "-l", "fr", "--fill-missing"])
+        result = runner.invoke(
+            app, ["translate", str(sample_xcstrings_file), "-l", "fr", "--fill-missing"]
+        )
 
         assert result.exit_code == 1
         assert "mutually exclusive" in result.output.lower()
 
-    def test_fill_missing_with_overwrite_mutually_exclusive(self, sample_xcstrings_file):
+    def test_fill_missing_with_overwrite_mutually_exclusive(
+        self, sample_xcstrings_file
+    ):
         """Exit 1 when both --fill-missing and --overwrite provided."""
-        result = runner.invoke(app, ["translate", str(sample_xcstrings_file), "--fill-missing", "--overwrite"])
+        result = runner.invoke(
+            app,
+            ["translate", str(sample_xcstrings_file), "--fill-missing", "--overwrite"],
+        )
 
         assert result.exit_code == 1
         assert "mutually exclusive" in result.output.lower()
 
     def test_dry_run_shows_estimate(self, sample_xcstrings_file):
         """Dry run shows estimate without making changes."""
-        result = runner.invoke(app, ["translate", str(sample_xcstrings_file), "-l", "fr", "--dry-run"])
+        result = runner.invoke(
+            app, ["translate", str(sample_xcstrings_file), "-l", "fr", "--dry-run"]
+        )
 
         assert result.exit_code == 0
         assert "dry run" in result.output.lower()
@@ -167,8 +178,11 @@ class TestTranslateCommand:
         with patch("xcstrings_translator.cli.XCStringsTranslator") as MockTranslator:
             mock_instance = MagicMock()
             mock_instance.stats = MagicMock(
-                translated=2, skipped_existing=0, errors=0,
-                input_tokens=100, output_tokens=50
+                translated=2,
+                skipped_existing=0,
+                errors=0,
+                input_tokens=100,
+                output_tokens=50,
             )
             mock_instance.model = "anthropic:claude-sonnet-4-5"
 
@@ -179,12 +193,17 @@ class TestTranslateCommand:
             mock_instance.translate_file.side_effect = mock_translate_file
             MockTranslator.return_value = mock_instance
 
-            result = runner.invoke(app, [
-                "translate",
-                str(sample_xcstrings_file),
-                "-l", "fr",
-                "-o", str(output_file)
-            ])
+            result = runner.invoke(
+                app,
+                [
+                    "translate",
+                    str(sample_xcstrings_file),
+                    "-l",
+                    "fr",
+                    "-o",
+                    str(output_file),
+                ],
+            )
 
             assert result.exit_code == 0
             assert mock_instance.translate_file.called
@@ -229,7 +248,9 @@ class TestLanguagesCommand:
 
         assert result.exit_code == 0
         # Should mention the count
-        assert str(len(SUPPORTED_LANGUAGES)) in result.output or "Total" in result.output
+        assert (
+            str(len(SUPPORTED_LANGUAGES)) in result.output or "Total" in result.output
+        )
 
 
 class TestEstimateCommand:
@@ -237,7 +258,9 @@ class TestEstimateCommand:
 
     def test_file_not_found(self, tmp_path):
         """Exit 1 when file doesn't exist."""
-        result = runner.invoke(app, ["estimate", str(tmp_path / "nonexistent.xcstrings"), "-l", "fr"])
+        result = runner.invoke(
+            app, ["estimate", str(tmp_path / "nonexistent.xcstrings"), "-l", "fr"]
+        )
 
         assert result.exit_code == 1
         assert "not found" in result.output.lower()
@@ -251,14 +274,18 @@ class TestEstimateCommand:
 
     def test_invalid_language(self, sample_xcstrings_file):
         """Exit 1 for unsupported language."""
-        result = runner.invoke(app, ["estimate", str(sample_xcstrings_file), "-l", "xx-invalid"])
+        result = runner.invoke(
+            app, ["estimate", str(sample_xcstrings_file), "-l", "xx-invalid"]
+        )
 
         assert result.exit_code == 1
         assert "unsupported" in result.output.lower()
 
     def test_success(self, sample_xcstrings_file):
         """Shows cost estimate."""
-        result = runner.invoke(app, ["estimate", str(sample_xcstrings_file), "-l", "fr,de"])
+        result = runner.invoke(
+            app, ["estimate", str(sample_xcstrings_file), "-l", "fr,de"]
+        )
 
         assert result.exit_code == 0
         assert "estimate" in result.output.lower() or "cost" in result.output.lower()
@@ -269,7 +296,9 @@ class TestValidateCommand:
 
     def test_file_not_found(self, tmp_path):
         """Exit 1 when file doesn't exist."""
-        result = runner.invoke(app, ["validate", str(tmp_path / "nonexistent.xcstrings")])
+        result = runner.invoke(
+            app, ["validate", str(tmp_path / "nonexistent.xcstrings")]
+        )
 
         assert result.exit_code == 1
         assert "not found" in result.output.lower()
@@ -278,18 +307,31 @@ class TestValidateCommand:
         """Exit 0 for file with no issues."""
         clean_file = tmp_path / "clean.xcstrings"
         with open(clean_file, "w") as f:
-            json.dump({
-                "sourceLanguage": "en",
-                "version": "1.0",
-                "strings": {
-                    "Hello": {
-                        "localizations": {
-                            "en": {"stringUnit": {"state": "translated", "value": "Hello"}},
-                            "fr": {"stringUnit": {"state": "translated", "value": "Bonjour"}},
+            json.dump(
+                {
+                    "sourceLanguage": "en",
+                    "version": "1.0",
+                    "strings": {
+                        "Hello": {
+                            "localizations": {
+                                "en": {
+                                    "stringUnit": {
+                                        "state": "translated",
+                                        "value": "Hello",
+                                    }
+                                },
+                                "fr": {
+                                    "stringUnit": {
+                                        "state": "translated",
+                                        "value": "Bonjour",
+                                    }
+                                },
+                            }
                         }
-                    }
-                }
-            }, f)
+                    },
+                },
+                f,
+            )
 
         result = runner.invoke(app, ["validate", str(clean_file)])
 
@@ -299,24 +341,42 @@ class TestValidateCommand:
         """Warns about missing translations."""
         incomplete_file = tmp_path / "incomplete.xcstrings"
         with open(incomplete_file, "w") as f:
-            json.dump({
-                "sourceLanguage": "en",
-                "version": "1.0",
-                "strings": {
-                    "Hello": {
-                        "localizations": {
-                            "en": {"stringUnit": {"state": "translated", "value": "Hello"}},
-                            "fr": {"stringUnit": {"state": "translated", "value": "Bonjour"}},
-                        }
+            json.dump(
+                {
+                    "sourceLanguage": "en",
+                    "version": "1.0",
+                    "strings": {
+                        "Hello": {
+                            "localizations": {
+                                "en": {
+                                    "stringUnit": {
+                                        "state": "translated",
+                                        "value": "Hello",
+                                    }
+                                },
+                                "fr": {
+                                    "stringUnit": {
+                                        "state": "translated",
+                                        "value": "Bonjour",
+                                    }
+                                },
+                            }
+                        },
+                        "World": {
+                            "localizations": {
+                                "en": {
+                                    "stringUnit": {
+                                        "state": "translated",
+                                        "value": "World",
+                                    }
+                                },
+                                # Missing fr
+                            }
+                        },
                     },
-                    "World": {
-                        "localizations": {
-                            "en": {"stringUnit": {"state": "translated", "value": "World"}},
-                            # Missing fr
-                        }
-                    }
-                }
-            }, f)
+                },
+                f,
+            )
 
         result = runner.invoke(app, ["validate", str(incomplete_file)])
 
@@ -327,19 +387,32 @@ class TestValidateCommand:
         """Error on format specifier mismatch."""
         mismatched_file = tmp_path / "mismatch.xcstrings"
         with open(mismatched_file, "w") as f:
-            json.dump({
-                "sourceLanguage": "en",
-                "version": "1.0",
-                "strings": {
-                    "Hello %@": {
-                        "localizations": {
-                            "en": {"stringUnit": {"state": "translated", "value": "Hello %@"}},
-                            # Missing %@ in translation
-                            "fr": {"stringUnit": {"state": "translated", "value": "Bonjour"}},
+            json.dump(
+                {
+                    "sourceLanguage": "en",
+                    "version": "1.0",
+                    "strings": {
+                        "Hello %@": {
+                            "localizations": {
+                                "en": {
+                                    "stringUnit": {
+                                        "state": "translated",
+                                        "value": "Hello %@",
+                                    }
+                                },
+                                # Missing %@ in translation
+                                "fr": {
+                                    "stringUnit": {
+                                        "state": "translated",
+                                        "value": "Bonjour",
+                                    }
+                                },
+                            }
                         }
-                    }
-                }
-            }, f)
+                    },
+                },
+                f,
+            )
 
         result = runner.invoke(app, ["validate", str(mismatched_file)])
 
@@ -365,13 +438,18 @@ class TestContextLoading:
             }
             MockTranslator.return_value = mock_instance
 
-            result = runner.invoke(app, [
-                "translate",
-                str(sample_xcstrings_file),
-                "-l", "fr",
-                "--context", "My custom context",
-                "--dry-run"
-            ])
+            result = runner.invoke(
+                app,
+                [
+                    "translate",
+                    str(sample_xcstrings_file),
+                    "-l",
+                    "fr",
+                    "--context",
+                    "My custom context",
+                    "--dry-run",
+                ],
+            )
 
             assert result.exit_code == 0
             # Verify translator was initialized with custom context
@@ -396,12 +474,9 @@ class TestContextLoading:
             }
             MockTranslator.return_value = mock_instance
 
-            result = runner.invoke(app, [
-                "translate",
-                str(sample_xcstrings_file),
-                "-l", "fr",
-                "--dry-run"
-            ])
+            result = runner.invoke(
+                app, ["translate", str(sample_xcstrings_file), "-l", "fr", "--dry-run"]
+            )
 
             assert result.exit_code == 0
             # Verify translator was initialized with context from file

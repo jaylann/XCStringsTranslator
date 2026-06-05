@@ -30,7 +30,7 @@ def sample_xcstrings_dict() -> dict:
                 "comment": "Greeting suffix",
                 "localizations": {
                     "en": {"stringUnit": {"state": "translated", "value": "World"}}
-                }
+                },
             },
         },
     }
@@ -63,7 +63,7 @@ def xcstrings_with_translations() -> XCStringsFile:
                 localizations={
                     "en": Localization(stringUnit=StringUnit(value="Goodbye")),
                     "de": Localization(stringUnit=StringUnit(value="Auf Wiedersehen")),
-                }
+                },
             ),
             "Welcome %@": StringEntry(
                 localizations={
@@ -176,7 +176,11 @@ def mock_agent():
 def mock_agent_with_custom_response():
     """Factory fixture for customizing mock Agent responses."""
 
-    def _create_mock(translations: list[tuple[str, str]], input_tokens: int = 100, output_tokens: int = 50):
+    def _create_mock(
+        translations: list[tuple[str, str]],
+        input_tokens: int = 100,
+        output_tokens: int = 50,
+    ):
         with patch("xcstrings_translator.translator.Agent") as MockAgent:
             mock_instance = MagicMock()
             mock_result = MagicMock()

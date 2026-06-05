@@ -3,14 +3,14 @@ XCStrings Translator - Translate Apple Localizable.xcstrings files using Claude 
 
 Usage:
     from src import XCStringsFile, XCStringsTranslator
-    
+
     # Load file
     xcstrings = XCStringsFile.from_file("Localizable.xcstrings")
-    
+
     # Translate
     translator = XCStringsTranslator(model="sonnet")
     xcstrings = translator.translate_file(xcstrings, ["fr", "es", "it"])
-    
+
     # Save
     xcstrings.to_file("Localizable.xcstrings")
 """

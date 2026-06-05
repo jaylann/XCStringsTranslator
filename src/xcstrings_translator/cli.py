@@ -17,7 +17,13 @@ from typing import Annotated, Optional
 import typer
 from rich.console import Console
 from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+from rich.progress import (
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    BarColumn,
+    TaskProgressColumn,
+)
 from rich.panel import Panel
 
 from .models import XCStringsFile, SUPPORTED_LANGUAGES
@@ -122,13 +128,21 @@ def _normalize_language_tag(raw: str) -> str:
 
 
 def _parse_target_languages(languages: str) -> list[str]:
-    raw_langs = [l.strip() for l in (languages or "").split(",") if l.strip()]
-    return [_normalize_language_tag(l) for l in raw_langs]
+    raw_langs = [lang.strip() for lang in (languages or "").split(",") if lang.strip()]
+    return [_normalize_language_tag(lang) for lang in raw_langs]
 
 
 # Directories that should never be searched when discovering nested files
 # (worktrees, build artifacts, dependencies, VCS metadata).
-_EXCLUDE_DIRS = {".git", ".claude", "build", "DerivedData", "Pods", ".build", "node_modules"}
+_EXCLUDE_DIRS = {
+    ".git",
+    ".claude",
+    "build",
+    "DerivedData",
+    "Pods",
+    ".build",
+    "node_modules",
+}
 
 
 def _discover_xcstrings(root: Path) -> list[Path]:
@@ -185,10 +199,12 @@ def _translate_one_file(
 
     console.print(f"[green]✓[/green] Loaded {len(xcstrings.strings)} total strings")
     console.print(f"[green]✓[/green] {len(translatable)} translatable strings")
-    console.print(f"[green]✓[/green] Existing languages: {', '.join(sorted(existing_langs)) or 'none'}")
+    console.print(
+        f"[green]✓[/green] Existing languages: {', '.join(sorted(existing_langs)) or 'none'}"
+    )
     console.print(f"[green]✓[/green] Target languages: {', '.join(target_langs)}")
     if fill_missing:
-        console.print(f"[green]✓[/green] Mode: Fill missing translations only")
+        console.print("[green]✓[/green] Mode: Fill missing translations only")
     console.print(f"[green]✓[/green] Model: {resolved}")
 
     # Load app context: --context flag > context.md file > neutral default
@@ -198,7 +214,9 @@ def _translate_one_file(
         if context_file.exists():
             try:
                 file_context = context_file.read_text().strip()
-                console.print(f"[green]✓[/green] Loaded context from {context_file.name}")
+                console.print(
+                    f"[green]✓[/green] Loaded context from {context_file.name}"
+                )
             except Exception:
                 pass
         if not file_context:
@@ -224,8 +242,12 @@ def _translate_one_file(
 
         table.add_row("Total translatable strings", str(estimate["total_strings"]))
         table.add_row("Strings to translate", str(estimate["total_to_translate"]))
-        table.add_row("Estimated input tokens", f"{estimate['estimated_input_tokens']:,}")
-        table.add_row("Estimated output tokens", f"{estimate['estimated_output_tokens']:,}")
+        table.add_row(
+            "Estimated input tokens", f"{estimate['estimated_input_tokens']:,}"
+        )
+        table.add_row(
+            "Estimated output tokens", f"{estimate['estimated_output_tokens']:,}"
+        )
         if estimate["estimated_cost_usd"]:
             table.add_row("Estimated cost", f"${estimate['estimated_cost_usd']:.2f}")
 
@@ -266,10 +288,14 @@ def _translate_one_file(
         # Add initial task
         for lang in target_langs:
             strings_for_lang = sum(
-                1 for key, entry in translatable
-                if lang not in entry.localizations or not entry.localizations[lang].stringUnit
+                1
+                for key, entry in translatable
+                if lang not in entry.localizations
+                or not entry.localizations[lang].stringUnit
             )
-            task_ids[lang] = progress.add_task(f"[cyan]{lang}[/cyan]", total=strings_for_lang or 1)
+            task_ids[lang] = progress.add_task(
+                f"[cyan]{lang}[/cyan]", total=strings_for_lang or 1
+            )
 
         try:
             xcstrings = translator.translate_file(
@@ -305,7 +331,9 @@ def _translate_one_file(
     table.add_row("Input tokens", f"{stats.input_tokens:,}")
     table.add_row("Output tokens", f"{stats.output_tokens:,}")
 
-    total_cost = get_model_cost(translator.model, stats.input_tokens, stats.output_tokens)
+    total_cost = get_model_cost(
+        translator.model, stats.input_tokens, stats.output_tokens
+    )
     if total_cost is not None:
         table.add_row("Estimated cost", f"${total_cost:.3f}")
 
@@ -316,17 +344,72 @@ def _translate_one_file(
 
 @app.command()
 def translate(
-    input_file: Annotated[Path, typer.Argument(help="Input .xcstrings file or a directory to search recursively")],
-    languages: Annotated[str, typer.Option("-l", "--languages", help="Comma-separated language codes (e.g., fr,es,it)")] = None,
-    output_file: Annotated[Optional[Path], typer.Option("-o", "--output", help="Output file (default: overwrites input; not allowed for directories)")] = None,
-    model: Annotated[str, typer.Option("-m", "--model", help="Model: sonnet, gpt-5, gemini-2.5-flash, openrouter:vendor/model (or provider:model)")] = "sonnet",
-    batch_size: Annotated[int, typer.Option("-b", "--batch-size", help="Strings per API call")] = 25,
-    concurrency: Annotated[int, typer.Option("-c", "--concurrency", help="Max parallel API requests")] = 32,
-    overwrite: Annotated[bool, typer.Option("--overwrite", help="Overwrite existing translations")] = False,
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Show what would be translated without doing it")] = False,
-    app_context: Annotated[Optional[str], typer.Option("--context", help="App description for better translations (or use context.md file)")] = None,
-    fill_missing: Annotated[bool, typer.Option("--fill-missing", "-f", help="Auto-detect languages and only fill missing translations")] = False,
-    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation when translating a directory of files")] = False,
+    input_file: Annotated[
+        Path,
+        typer.Argument(
+            help="Input .xcstrings file or a directory to search recursively"
+        ),
+    ],
+    languages: Annotated[
+        str,
+        typer.Option(
+            "-l", "--languages", help="Comma-separated language codes (e.g., fr,es,it)"
+        ),
+    ] = None,
+    output_file: Annotated[
+        Optional[Path],
+        typer.Option(
+            "-o",
+            "--output",
+            help="Output file (default: overwrites input; not allowed for directories)",
+        ),
+    ] = None,
+    model: Annotated[
+        str,
+        typer.Option(
+            "-m",
+            "--model",
+            help="Model: sonnet, gpt-5, gemini-2.5-flash, openrouter:vendor/model (or provider:model)",
+        ),
+    ] = "sonnet",
+    batch_size: Annotated[
+        int, typer.Option("-b", "--batch-size", help="Strings per API call")
+    ] = 25,
+    concurrency: Annotated[
+        int, typer.Option("-c", "--concurrency", help="Max parallel API requests")
+    ] = 32,
+    overwrite: Annotated[
+        bool, typer.Option("--overwrite", help="Overwrite existing translations")
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run", help="Show what would be translated without doing it"
+        ),
+    ] = False,
+    app_context: Annotated[
+        Optional[str],
+        typer.Option(
+            "--context",
+            help="App description for better translations (or use context.md file)",
+        ),
+    ] = None,
+    fill_missing: Annotated[
+        bool,
+        typer.Option(
+            "--fill-missing",
+            "-f",
+            help="Auto-detect languages and only fill missing translations",
+        ),
+    ] = False,
+    yes: Annotated[
+        bool,
+        typer.Option(
+            "--yes",
+            "-y",
+            help="Skip confirmation when translating a directory of files",
+        ),
+    ] = False,
 ):
     """
     Translate an xcstrings file (or every .xcstrings file in a directory) using AI.
@@ -347,26 +430,40 @@ def translate(
 
     # Validate flag combinations
     if fill_missing and languages:
-        console.print("[red]Error:[/red] --fill-missing and -l/--languages are mutually exclusive")
+        console.print(
+            "[red]Error:[/red] --fill-missing and -l/--languages are mutually exclusive"
+        )
         raise typer.Exit(1)
     if fill_missing and overwrite:
-        console.print("[red]Error:[/red] --fill-missing and --overwrite are mutually exclusive")
+        console.print(
+            "[red]Error:[/red] --fill-missing and --overwrite are mutually exclusive"
+        )
         raise typer.Exit(1)
     if is_dir and output_file:
-        console.print("[red]Error:[/red] -o/--output is not allowed when the input is a directory")
+        console.print(
+            "[red]Error:[/red] -o/--output is not allowed when the input is a directory"
+        )
         raise typer.Exit(1)
 
     # Parse + validate target languages once (per-file in fill_missing mode)
     target_langs: Optional[list[str]] = None
     if not fill_missing:
         if not languages:
-            console.print("[red]Error:[/red] No languages specified. Use -l/--languages (e.g., -l fr,es,it)")
+            console.print(
+                "[red]Error:[/red] No languages specified. Use -l/--languages (e.g., -l fr,es,it)"
+            )
             raise typer.Exit(1)
         target_langs = _parse_target_languages(languages)
-        invalid_langs = [l for l in target_langs if l not in SUPPORTED_LANGUAGES]
+        invalid_langs = [
+            lang for lang in target_langs if lang not in SUPPORTED_LANGUAGES
+        ]
         if invalid_langs:
-            console.print(f"[red]Error:[/red] Unsupported languages: {', '.join(invalid_langs)}")
-            console.print("Run [cyan]xcstrings languages[/cyan] to see supported languages.")
+            console.print(
+                f"[red]Error:[/red] Unsupported languages: {', '.join(invalid_langs)}"
+            )
+            console.print(
+                "Run [cyan]xcstrings languages[/cyan] to see supported languages."
+            )
             raise typer.Exit(1)
 
     # Validate model (accept aliases or provider:model format)
@@ -401,7 +498,9 @@ def translate(
         console.print(f"[red]Error:[/red] No .xcstrings files found under {input_file}")
         raise typer.Exit(1)
 
-    console.print(f"\n[cyan]Found {len(files)} .xcstrings file(s) under[/cyan] {input_file}:")
+    console.print(
+        f"\n[cyan]Found {len(files)} .xcstrings file(s) under[/cyan] {input_file}:"
+    )
     for f in files:
         console.print(f"  • {f.relative_to(input_file)}")
 
@@ -435,52 +534,51 @@ def info(
     if not input_file.exists():
         console.print(f"[red]Error:[/red] File not found: {input_file}")
         raise typer.Exit(1)
-    
+
     try:
         xcstrings = XCStringsFile.from_file(str(input_file))
     except Exception as e:
         console.print(f"[red]Error loading file:[/red] {e}")
         raise typer.Exit(1)
-    
+
     existing_langs = xcstrings.get_existing_languages()
     translatable = xcstrings.get_translatable_strings()
-    
+
     console.print(Panel(f"[cyan]{input_file}[/cyan]", title="XCStrings File Info"))
-    
+
     table = Table()
     table.add_column("Property", style="cyan")
     table.add_column("Value", style="green")
-    
+
     table.add_row("Source language", xcstrings.sourceLanguage)
     table.add_row("Version", xcstrings.version)
     table.add_row("Total strings", str(len(xcstrings.strings)))
     table.add_row("Translatable strings", str(len(translatable)))
     table.add_row("Languages", ", ".join(sorted(existing_langs)) or "none")
-    
+
     console.print(table)
-    
+
     # Show language coverage
     if existing_langs:
         console.print("\n[cyan]Language Coverage:[/cyan]")
-        
+
         coverage_table = Table()
         coverage_table.add_column("Language", style="cyan")
         coverage_table.add_column("Translated", style="green")
         coverage_table.add_column("Coverage", style="yellow")
-        
+
         for lang in sorted(existing_langs):
             count = sum(
-                1 for key, entry in translatable
+                1
+                for key, entry in translatable
                 if lang in entry.localizations and entry.localizations[lang].stringUnit
             )
             percentage = (count / len(translatable) * 100) if translatable else 0
             lang_name = SUPPORTED_LANGUAGES.get(lang, lang)
             coverage_table.add_row(
-                f"{lang} ({lang_name})",
-                str(count),
-                f"{percentage:.1f}%"
+                f"{lang} ({lang_name})", str(count), f"{percentage:.1f}%"
             )
-        
+
         console.print(coverage_table)
 
 
@@ -492,10 +590,10 @@ def languages():
     table = Table(title="Supported Languages")
     table.add_column("Code", style="cyan")
     table.add_column("Language", style="green")
-    
+
     for code, name in sorted(SUPPORTED_LANGUAGES.items()):
         table.add_row(code, name)
-    
+
     console.print(table)
     console.print(f"\n[dim]Total: {len(SUPPORTED_LANGUAGES)} languages[/dim]")
 
@@ -503,8 +601,12 @@ def languages():
 @app.command()
 def estimate(
     input_file: Annotated[Path, typer.Argument(help="Input .xcstrings file")],
-    languages: Annotated[str, typer.Option("-l", "--languages", help="Comma-separated language codes")] = None,
-    model: Annotated[str, typer.Option("-m", "--model", help="Model (sonnet, gpt-4o, etc.)")] = "sonnet",
+    languages: Annotated[
+        str, typer.Option("-l", "--languages", help="Comma-separated language codes")
+    ] = None,
+    model: Annotated[
+        str, typer.Option("-m", "--model", help="Model (sonnet, gpt-4o, etc.)")
+    ] = "sonnet",
 ):
     """
     Estimate the cost of translating an xcstrings file.
@@ -512,41 +614,45 @@ def estimate(
     if not input_file.exists():
         console.print(f"[red]Error:[/red] File not found: {input_file}")
         raise typer.Exit(1)
-    
+
     if not languages:
         console.print("[red]Error:[/red] No languages specified. Use -l/--languages")
         raise typer.Exit(1)
-    
+
     target_langs = _parse_target_languages(languages)
-    invalid_langs = [l for l in target_langs if l not in SUPPORTED_LANGUAGES]
+    invalid_langs = [lang for lang in target_langs if lang not in SUPPORTED_LANGUAGES]
     if invalid_langs:
-        console.print(f"[red]Error:[/red] Unsupported languages: {', '.join(invalid_langs)}")
-        console.print("Run [cyan]xcstrings languages[/cyan] to see supported languages.")
+        console.print(
+            f"[red]Error:[/red] Unsupported languages: {', '.join(invalid_langs)}"
+        )
+        console.print(
+            "Run [cyan]xcstrings languages[/cyan] to see supported languages."
+        )
         raise typer.Exit(1)
-    
+
     try:
         xcstrings = XCStringsFile.from_file(str(input_file))
     except Exception as e:
         console.print(f"[red]Error loading file:[/red] {e}")
         raise typer.Exit(1)
-    
+
     translator = XCStringsTranslator(model=model)
     estimate = translator.estimate_cost(xcstrings, target_langs)
-    
+
     table = Table(title=f"Cost Estimate ({model})")
     table.add_column("Metric", style="cyan")
     table.add_column("Value", style="green")
-    
+
     table.add_row("Translatable strings", str(estimate["total_strings"]))
     table.add_row("Strings to translate", str(estimate["total_to_translate"]))
     table.add_row("Est. input tokens", f"{estimate['estimated_input_tokens']:,}")
     table.add_row("Est. output tokens", f"{estimate['estimated_output_tokens']:,}")
-    
+
     if estimate["estimated_cost_usd"]:
         table.add_row("Estimated cost", f"${estimate['estimated_cost_usd']:.2f}")
-    
+
     console.print(table)
-    
+
     # Show all models comparison
     console.print("\n[cyan]Cost by model:[/cyan]")
 
@@ -593,20 +699,20 @@ def validate(
     if not input_file.exists():
         console.print(f"[red]Error:[/red] File not found: {input_file}")
         raise typer.Exit(1)
-    
+
     try:
         xcstrings = XCStringsFile.from_file(str(input_file))
     except Exception as e:
         console.print(f"[red]Error loading file:[/red] {e}")
         raise typer.Exit(1)
-    
+
     issues = []
     warnings = []
-    
+
     # Check for missing translations
     existing_langs = xcstrings.get_existing_languages()
     translatable = xcstrings.get_translatable_strings()
-    
+
     for lang in existing_langs:
         missing = []
         for key, entry in translatable:
@@ -614,38 +720,40 @@ def validate(
                 missing.append(key)
             elif not entry.localizations[lang].stringUnit:
                 missing.append(key)
-        
+
         if missing:
             warnings.append(f"{lang}: {len(missing)} missing translations")
-    
+
     # Check for format specifier mismatches
     for key, entry in translatable:
-        source_specs = re.findall(r'%[\d$]*[@dlfse]|%lld|%%', key)
-        
+        source_specs = re.findall(r"%[\d$]*[@dlfse]|%lld|%%", key)
+
         for lang, loc in entry.localizations.items():
             if loc.stringUnit and loc.stringUnit.value:
-                trans_specs = re.findall(r'%[\d$]*[@dlfse]|%lld|%%', loc.stringUnit.value)
+                trans_specs = re.findall(
+                    r"%[\d$]*[@dlfse]|%lld|%%", loc.stringUnit.value
+                )
                 if sorted(source_specs) != sorted(trans_specs):
                     issues.append(f"Format mismatch in {lang} for: {key[:50]}...")
-    
+
     # Print results
     console.print(Panel(f"[cyan]{input_file}[/cyan]", title="Validation Results"))
-    
+
     if issues:
         console.print(f"\n[red]Errors ({len(issues)}):[/red]")
         for issue in issues[:10]:  # Show first 10
             console.print(f"  • {issue}")
         if len(issues) > 10:
             console.print(f"  ... and {len(issues) - 10} more")
-    
+
     if warnings:
         console.print(f"\n[yellow]Warnings ({len(warnings)}):[/yellow]")
         for warning in warnings:
             console.print(f"  • {warning}")
-    
+
     if not issues and not warnings:
         console.print("[green]✓ No issues found![/green]")
-    
+
     raise typer.Exit(1 if issues else 0)
 
 

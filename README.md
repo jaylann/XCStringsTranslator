@@ -1,5 +1,10 @@
 # XCStrings Translator
 
+[![CI](https://github.com/jaylann/XCStringsTranslator/actions/workflows/ci.yml/badge.svg)](https://github.com/jaylann/XCStringsTranslator/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/xcstrings-translator.svg)](https://pypi.org/project/xcstrings-translator/)
+[![Python versions](https://img.shields.io/pypi/pyversions/xcstrings-translator.svg)](https://pypi.org/project/xcstrings-translator/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Translate Apple's `Localizable.xcstrings` files using AI. Supports **Claude**, **GPT**, and **Gemini**.
 
 ```bash
