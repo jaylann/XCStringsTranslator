@@ -133,7 +133,7 @@ xcstrings translate input.xcstrings -l fr --context "A fitness app with motivati
 ## Python API
 
 ```python
-from src import XCStringsFile, XCStringsTranslator
+from xcstrings_translator import XCStringsFile, XCStringsTranslator
 
 # Load
 xcstrings = XCStringsFile.from_file("Localizable.xcstrings")
@@ -152,7 +152,7 @@ print(f"Cost: ${translator.stats.input_tokens * 3 / 1e6 + translator.stats.outpu
 
 ## Supported Languages
 
-**European:** en, de, fr, es, it, pt, pt-BR, nl, pl, sv, da, nb, fi, cs, sk, hu, ro, bg, el, sq, uk, ru, tr
+**European:** en, de, fr, es, it, pt, pt-BR, pt-PT, nl, pl, sv, da, nb, fi, cs, sk, hu, ro, bg, el, sq, uk, ru, tr
 
 **Asian:** ja, ko, zh-Hans, zh-Hant, th, vi, id, ms, hi
 
@@ -182,6 +182,10 @@ print(f"Cost: ${translator.stats.input_tokens * 3 / 1e6 + translator.stats.outpu
 **Format mismatch** - Run `xcstrings validate` to find issues
 
 **API errors** - Check correct key is set for your model
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for dev setup, tests, and the release process. Please also review our [Code of Conduct](CODE_OF_CONDUCT.md). To report a security issue, see [SECURITY.md](SECURITY.md).
 
 ## License
 
