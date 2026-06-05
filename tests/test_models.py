@@ -1,18 +1,19 @@
 """Tests for xcstrings_translator.models - File I/O and data models."""
 
 import json
-import pytest
 from pathlib import Path
 
+import pytest
+
 from xcstrings_translator.models import (
-    XCStringsFile,
+    SUPPORTED_LANGUAGES,
+    Localization,
+    PluralVariation,
     StringEntry,
     StringUnit,
-    Localization,
-    Variations,
-    PluralVariation,
     TranslationContext,
-    SUPPORTED_LANGUAGES,
+    Variations,
+    XCStringsFile,
 )
 
 

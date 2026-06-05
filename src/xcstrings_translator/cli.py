@@ -10,29 +10,30 @@ Usage:
 """
 
 from __future__ import annotations
+
 import re
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 from rich.console import Console
-from rich.table import Table
+from rich.panel import Panel
 from rich.progress import (
+    BarColumn,
     Progress,
     SpinnerColumn,
-    TextColumn,
-    BarColumn,
     TaskProgressColumn,
+    TextColumn,
 )
-from rich.panel import Panel
+from rich.table import Table
 
-from .models import XCStringsFile, SUPPORTED_LANGUAGES
+from .models import SUPPORTED_LANGUAGES, XCStringsFile
 from .translator import (
-    XCStringsTranslator,
     MODEL_ALIASES,
     MODEL_PRICING,
-    resolve_model,
+    XCStringsTranslator,
     get_model_cost,
+    resolve_model,
 )
 
 app = typer.Typer(
@@ -160,14 +161,14 @@ def _discover_xcstrings(root: Path) -> list[Path]:
 def _translate_one_file(
     input_file: Path,
     *,
-    languages: Optional[list[str]],
+    languages: list[str] | None,
     model: str,
     resolved: str,
     batch_size: int,
     concurrency: int,
     overwrite: bool,
     dry_run: bool,
-    app_context: Optional[str],
+    app_context: str | None,
     fill_missing: bool,
 ) -> bool:
     """
@@ -217,8 +218,10 @@ def _translate_one_file(
                 console.print(
                     f"[green]✓[/green] Loaded context from {context_file.name}"
                 )
-            except Exception:
-                pass
+            except OSError as e:
+                console.print(
+                    f"[yellow]![/yellow] Could not read {context_file.name}: {e}"
+                )
         if not file_context:
             file_context = "A mobile app. Tone: friendly, clear."
 
@@ -270,7 +273,6 @@ def _translate_one_file(
         TaskProgressColumn(),
         console=console,
     ) as progress:
-
         task_ids: dict[str, int] = {}
 
         def progress_callback(lang: str, current: int, total: int, batch_size: int):
@@ -357,7 +359,7 @@ def translate(
         ),
     ] = None,
     output_file: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "-o",
             "--output",
@@ -388,7 +390,7 @@ def translate(
         ),
     ] = False,
     app_context: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--context",
             help="App description for better translations (or use context.md file)",
@@ -446,7 +448,7 @@ def translate(
         raise typer.Exit(1)
 
     # Parse + validate target languages once (per-file in fill_missing mode)
-    target_langs: Optional[list[str]] = None
+    target_langs: list[str] | None = None
     if not fill_missing:
         if not languages:
             console.print(
@@ -474,17 +476,17 @@ def translate(
         console.print("Or use provider:model format (e.g., openai:gpt-4o)")
         raise typer.Exit(1)
 
-    common = dict(
-        languages=target_langs,
-        model=model,
-        resolved=resolved,
-        batch_size=batch_size,
-        concurrency=concurrency,
-        overwrite=overwrite,
-        dry_run=dry_run,
-        app_context=app_context,
-        fill_missing=fill_missing,
-    )
+    common = {
+        "languages": target_langs,
+        "model": model,
+        "resolved": resolved,
+        "batch_size": batch_size,
+        "concurrency": concurrency,
+        "overwrite": overwrite,
+        "dry_run": dry_run,
+        "app_context": app_context,
+        "fill_missing": fill_missing,
+    }
 
     # Single file: preserve original behavior (exit 1 on failure).
     if not is_dir:
@@ -504,10 +506,13 @@ def translate(
     for f in files:
         console.print(f"  • {f.relative_to(input_file)}")
 
-    if not yes and not dry_run:
-        if not typer.confirm(f"\nTranslate all {len(files)} file(s)?"):
-            console.print("[yellow]Aborted.[/yellow]")
-            raise typer.Exit(0)
+    if (
+        not yes
+        and not dry_run
+        and not typer.confirm(f"\nTranslate all {len(files)} file(s)?")
+    ):
+        console.print("[yellow]Aborted.[/yellow]")
+        raise typer.Exit(0)
 
     failures: list[Path] = []
     for f in files:
@@ -539,7 +544,7 @@ def info(
         xcstrings = XCStringsFile.from_file(str(input_file))
     except Exception as e:
         console.print(f"[red]Error loading file:[/red] {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
     existing_langs = xcstrings.get_existing_languages()
     translatable = xcstrings.get_translatable_strings()
@@ -634,7 +639,7 @@ def estimate(
         xcstrings = XCStringsFile.from_file(str(input_file))
     except Exception as e:
         console.print(f"[red]Error loading file:[/red] {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
     translator = XCStringsTranslator(model=model)
     estimate = translator.estimate_cost(xcstrings, target_langs)
@@ -704,7 +709,7 @@ def validate(
         xcstrings = XCStringsFile.from_file(str(input_file))
     except Exception as e:
         console.print(f"[red]Error loading file:[/red] {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
     issues = []
     warnings = []
@@ -716,9 +721,10 @@ def validate(
     for lang in existing_langs:
         missing = []
         for key, entry in translatable:
-            if lang not in entry.localizations:
-                missing.append(key)
-            elif not entry.localizations[lang].stringUnit:
+            if (
+                lang not in entry.localizations
+                or not entry.localizations[lang].stringUnit
+            ):
                 missing.append(key)
 
         if missing:

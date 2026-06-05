@@ -15,24 +15,25 @@ Features:
 """
 
 from __future__ import annotations
-import re
+
 import json
-from typing import Any
-from dataclasses import dataclass
-from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
+import re
 import threading
 from collections import deque
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from dataclasses import dataclass
+from typing import Any
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 
 from .models import (
-    XCStringsFile,
-    StringEntry,
+    SUPPORTED_LANGUAGES,
     Localization,
+    StringEntry,
     StringUnit,
     TranslationContext,
-    SUPPORTED_LANGUAGES,
+    XCStringsFile,
 )
 
 # Model shorthand aliases -> provider:model format
@@ -348,7 +349,7 @@ class XCStringsTranslator:
                         continue
                     except Exception as e:
                         # Cancel not-yet-started work; already-running requests can't be interrupted.
-                        for f in in_flight.keys():
+                        for f in in_flight:
                             f.cancel()
                         keys = [k for k, _entry, _ctx in batch]
                         raise RuntimeError(
@@ -413,7 +414,7 @@ class XCStringsTranslator:
 
         # Build the translation request
         strings_data = []
-        for key, entry, context in batch:
+        for key, _entry, context in batch:
             string_info = {
                 "key": key,
                 "existing": context.existing_translations,
@@ -500,11 +501,11 @@ Return the translations. Each item must have "key" (the original key unchanged) 
                 or "invalid" in error_str
             )
             if parse_related:
-                raise OutputParseError(str(e))
+                raise OutputParseError(str(e)) from e
 
             with self._stats_lock:
                 self.stats.errors += len(batch)
-            raise RuntimeError(f"Translation failed: {e}")
+            raise RuntimeError(f"Translation failed: {e}") from e
 
     def estimate_cost(
         self,
@@ -522,10 +523,11 @@ Return the translations. Each item must have "key" (the original key unchanged) 
         strings_per_lang = {}
         for lang in target_languages:
             count = 0
-            for key, entry in translatable:
-                if lang not in entry.localizations:
-                    count += 1
-                elif not entry.localizations[lang].stringUnit:
+            for _key, entry in translatable:
+                if (
+                    lang not in entry.localizations
+                    or not entry.localizations[lang].stringUnit
+                ):
                     count += 1
             strings_per_lang[lang] = count
 

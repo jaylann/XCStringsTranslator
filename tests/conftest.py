@@ -1,17 +1,18 @@
 """Shared pytest fixtures for xcstrings-translator tests."""
 
 import json
-import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from xcstrings_translator.models import (
-    XCStringsFile,
+    Localization,
     StringEntry,
     StringUnit,
-    Localization,
+    XCStringsFile,
 )
-from xcstrings_translator.translator import TranslationResult, TranslationItem
+from xcstrings_translator.translator import TranslationItem, TranslationResult
 
 
 @pytest.fixture

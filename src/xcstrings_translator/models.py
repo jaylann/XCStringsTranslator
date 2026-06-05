@@ -34,7 +34,9 @@ Structure:
 """
 
 from __future__ import annotations
+
 from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -82,11 +84,11 @@ class XCStringsFile(BaseModel):
     strings: dict[str, StringEntry] = Field(default_factory=dict)
 
     @classmethod
-    def from_file(cls, path: str) -> "XCStringsFile":
+    def from_file(cls, path: str) -> XCStringsFile:
         """Load an xcstrings file from disk."""
         import json
 
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
         return cls.model_validate(data)
 

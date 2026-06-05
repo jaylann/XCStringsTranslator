@@ -1,15 +1,15 @@
 """Tests for xcstrings_translator.cli - CLI commands."""
 
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
 
 from xcstrings_translator.cli import (
-    app,
     _canonicalize_bcp47_tag,
     _normalize_language_tag,
     _parse_target_languages,
+    app,
 )
 from xcstrings_translator.models import SUPPORTED_LANGUAGES
 

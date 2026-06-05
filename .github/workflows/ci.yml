@@ -30,8 +30,19 @@ jobs:
       - name: Lint (ruff)
         run: ruff check .
 
-      - name: Format check (black)
-        run: black --check .
+      - name: Format check (ruff)
+        run: ruff format --check .
 
       - name: Test (pytest)
         run: pytest tests/ -v
+
+  audit:
+    name: Dependency audit (pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Audit dependencies
+        uses: pypa/gh-action-pip-audit@v1.1.0
+        with:
+          inputs: .

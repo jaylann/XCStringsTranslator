@@ -8,11 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Continuous integration (GitHub Actions) running ruff, black, and pytest on Python 3.11 and 3.12.
+- Continuous integration (GitHub Actions) running ruff lint, ruff format check, and pytest on Python 3.11, 3.12, and 3.13.
 - Automated PyPI releases on `v*` tags via Trusted Publishing (OIDC), no stored tokens.
 - Community health files: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`.
 - Issue and pull request templates, `CODEOWNERS`, and Dependabot configuration.
-- Explicit `[tool.ruff]` and `[tool.black]` configuration in `pyproject.toml`.
+- Security automation: CodeQL analysis, dependency review, `pip-audit`, and OpenSSF Scorecard workflows.
+- `.pre-commit-config.yaml` running ruff (lint + format) and common hygiene hooks.
+- PEP 561 `py.typed` marker so downstream type checkers use the package's type hints.
+
+### Changed
+- Expanded the ruff rule set (bugbear, simplify, comprehensions, pyupgrade, isort, and flake8-bandit security checks) and fixed all surfaced issues.
+- Replaced `black` with `ruff format` as the single formatter.
+
+### Fixed
+- Python API examples and docstring used `from src import ...`, which fails for the installed package; corrected to `xcstrings_translator`.
+- Documented `pt-PT` in the supported languages list.
 
 ## [1.0.0]
 

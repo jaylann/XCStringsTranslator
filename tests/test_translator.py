@@ -1,26 +1,27 @@
 """Tests for xcstrings_translator.translator - Translation engine."""
 
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from xcstrings_translator.cli import _normalize_language_tag
 from xcstrings_translator.models import (
+    SUPPORTED_LANGUAGES,
     Localization,
     StringEntry,
     StringUnit,
     TranslationContext,
     XCStringsFile,
-    SUPPORTED_LANGUAGES,
 )
 from xcstrings_translator.translator import (
-    XCStringsTranslator,
-    resolve_model,
-    get_model_cost,
-    TranslationResult,
-    TranslationItem,
-    TranslationStats,
     OutputParseError,
+    TranslationItem,
+    TranslationResult,
+    TranslationStats,
+    XCStringsTranslator,
+    get_model_cost,
+    resolve_model,
 )
-from xcstrings_translator.cli import _normalize_language_tag
 
 
 class TestModelResolution:

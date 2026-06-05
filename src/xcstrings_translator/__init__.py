@@ -15,9 +15,9 @@ Usage:
     xcstrings.to_file("Localizable.xcstrings")
 """
 
-from .models import XCStringsFile, SUPPORTED_LANGUAGES
-from .translator import XCStringsTranslator
 from .cli import app
+from .models import SUPPORTED_LANGUAGES, XCStringsFile
+from .translator import XCStringsTranslator
 
 __all__ = [
     "XCStringsFile",

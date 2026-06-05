@@ -17,9 +17,9 @@ make dev            # pip install -e ".[dev]"
 CI runs the same three commands on every push and pull request. Run them locally before opening a PR:
 
 ```bash
-ruff check .        # lint
-black --check .     # formatting (use `black .` to auto-fix)
-pytest tests/ -v    # tests
+ruff check .            # lint
+ruff format --check .   # formatting (use `ruff format .` to auto-fix)
+pytest tests/ -v        # tests
 ```
 
 `make test` runs the test suite.
