@@ -30,9 +30,9 @@ class TestModelResolution:
 
     def test_resolve_model_shorthands(self):
         """Model shorthands resolve correctly."""
-        assert resolve_model("sonnet") == "anthropic:claude-sonnet-4-5"
+        assert resolve_model("sonnet") == "anthropic:claude-sonnet-4-6"
         assert resolve_model("haiku") == "anthropic:claude-haiku-4-5"
-        assert resolve_model("opus") == "anthropic:claude-opus-4-5"
+        assert resolve_model("opus") == "anthropic:claude-opus-4-8"
         assert resolve_model("gpt-5") == "openai:gpt-5"
         assert resolve_model("gemini-2.0-flash") == "google-gla:gemini-2.0-flash"
 
@@ -107,7 +107,7 @@ class TestTranslatorInitialization:
         """Translator initializes with correct model resolution."""
         translator = XCStringsTranslator(model="sonnet", batch_size=10)
 
-        assert translator.model == "anthropic:claude-sonnet-4-5"
+        assert translator.model == "anthropic:claude-sonnet-4-6"
         assert translator.batch_size == 10
 
     def test_translator_custom_context(self):

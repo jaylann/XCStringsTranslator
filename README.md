@@ -37,19 +37,20 @@ xcstrings translate Localizable.xcstrings -l fr,de,ja
 | Model | Provider | Cost/1M tokens | Best for |
 |-------|----------|----------------|----------|
 | `haiku` | Anthropic | $1 in / $5 out | Fast iteration |
-| `sonnet` | Anthropic | $3 in / $15 out | **Recommended** |
-| `opus` | Anthropic | $15 in / $75 out | Highest quality |
-| `gpt-5-nano` | OpenAI | $0.05 in / $0.40 out | Cheapest |
-| `gpt-5-mini` | OpenAI | $0.25 in / $2 out | Budget |
-| `gpt-5` | OpenAI | $1.25 in / $10 out | Quality |
-| `gemini-2.0-flash` | Google | $0.10 in / $0.40 out | Fast & cheap |
-| `gemini-3-flash` | Google | $0.50 in / $3 out | Balanced |
-| `gemini-3-pro` | Google | $2 in / $12 out | Quality |
+| `sonnet` | Anthropic | $3 in / $15 out | **Recommended** (default) |
+| `opus` | Anthropic | $5 in / $25 out | Highest quality |
+| `gpt-5.4-nano` | OpenAI | $0.20 in / $1.25 out | Cheapest |
+| `gpt-5.4` | OpenAI | $2.50 in / $15 out | Quality |
+| `gpt-5.5` | OpenAI | $5 in / $30 out | Flagship |
+| `gemini-3.5-flash` | Google | $1.50 in / $9 out | Fast & balanced |
+| `gemini-3.1-pro` | Google | $2 in / $12 out | Quality |
+
+> Older aliases still work: `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `o3`, `o4-mini`, `gemini-2.5-pro/flash`, `gemini-2.0-flash`.
 
 ```bash
-xcstrings translate input.xcstrings -l fr -m haiku      # fast/cheap
-xcstrings translate input.xcstrings -l fr -m sonnet     # balanced (default)
-xcstrings translate input.xcstrings -l fr -m gpt-5-nano # cheapest
+xcstrings translate input.xcstrings -l fr -m haiku        # fast/cheap
+xcstrings translate input.xcstrings -l fr -m sonnet       # balanced (default)
+xcstrings translate input.xcstrings -l fr -m gpt-5.4-nano # cheapest
 ```
 
 ### OpenRouter
@@ -59,7 +60,7 @@ Route through [OpenRouter](https://openrouter.ai) to reach any vendor with one k
 (`or-sonnet`, `or-opus`, `or-gpt-5`, `or-gpt-5-mini`, `or-gemini-pro`, `or-gemini-flash`):
 
 ```bash
-xcstrings translate input.xcstrings -l fr -m openrouter:anthropic/claude-sonnet-4.5
+xcstrings translate input.xcstrings -l fr -m openrouter:anthropic/claude-sonnet-4.6
 xcstrings translate input.xcstrings -l fr -m or-gpt-5
 ```
 

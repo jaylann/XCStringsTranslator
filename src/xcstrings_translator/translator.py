@@ -38,23 +38,30 @@ from .models import (
 
 # Model shorthand aliases -> provider:model format
 MODEL_ALIASES = {
-    # Anthropic Claude 4.5 (Nov 2025)
-    "opus": "anthropic:claude-opus-4-5",
-    "sonnet": "anthropic:claude-sonnet-4-5",
+    # Anthropic Claude (latest)
+    "opus": "anthropic:claude-opus-4-8",
+    "sonnet": "anthropic:claude-sonnet-4-6",
     "haiku": "anthropic:claude-haiku-4-5",
-    # OpenAI GPT-5.2 (Dec 2025) - latest
+    # OpenAI GPT-5.5 / 5.4 (latest)
+    "gpt-5.5": "openai:gpt-5.5",
+    "gpt-5.4": "openai:gpt-5.4",
+    "gpt-5.4-mini": "openai:gpt-5.4-mini",
+    "gpt-5.4-nano": "openai:gpt-5.4-nano",
+    # OpenAI GPT-5.2 / 5.1
     "gpt-5.2": "openai:gpt-5.2",
     "gpt-5.2-pro": "openai:gpt-5.2-pro",
-    # OpenAI GPT-5.1 (Nov 2025)
     "gpt-5.1": "openai:gpt-5.1",
-    # OpenAI GPT-5 (Aug 2025)
+    # OpenAI GPT-5
     "gpt-5": "openai:gpt-5",
     "gpt-5-mini": "openai:gpt-5-mini",
     "gpt-5-nano": "openai:gpt-5-nano",
     # OpenAI reasoning models
     "o3": "openai:o3",
     "o4-mini": "openai:o4-mini",
-    # Google Gemini 3 (Dec 2025)
+    # Google Gemini 3.5 / 3.1 (latest)
+    "gemini-3.5-flash": "google-gla:gemini-3.5-flash",
+    "gemini-3.1-pro": "google-gla:gemini-3.1-pro-preview",
+    # Google Gemini 3 (preview)
     "gemini-3-pro": "google-gla:gemini-3-pro-preview",
     "gemini-3-flash": "google-gla:gemini-3-flash-preview",
     # Google Gemini 2.5
@@ -64,8 +71,8 @@ MODEL_ALIASES = {
     "gemini-2.0-flash": "google-gla:gemini-2.0-flash",
     # OpenRouter (requires OPENROUTER_API_KEY). Any "openrouter:<vendor>/<model>"
     # string also works directly via -m.
-    "or-sonnet": "openrouter:anthropic/claude-sonnet-4.5",
-    "or-opus": "openrouter:anthropic/claude-opus-4.5",
+    "or-sonnet": "openrouter:anthropic/claude-sonnet-4.6",
+    "or-opus": "openrouter:anthropic/claude-opus-4.8",
     "or-gpt-5": "openrouter:openai/gpt-5",
     "or-gpt-5-mini": "openrouter:openai/gpt-5-mini",
     "or-gemini-pro": "openrouter:google/gemini-2.5-pro",
@@ -75,26 +82,36 @@ MODEL_ALIASES = {
 # For backward compatibility
 MODEL_CONFIGS = MODEL_ALIASES
 
-# Pricing per 1M tokens (as of Dec 2025)
+# Pricing per 1M tokens (as of Jun 2026)
 # Format: "provider:model" -> {"input": $, "output": $}
 MODEL_PRICING = {
-    # Anthropic Claude 4.5
-    "anthropic:claude-opus-4-5": {"input": 15.0, "output": 75.0},
-    "anthropic:claude-sonnet-4-5": {"input": 3.0, "output": 15.0},
+    # Anthropic Claude (latest)
+    "anthropic:claude-opus-4-8": {"input": 5.0, "output": 25.0},
+    "anthropic:claude-sonnet-4-6": {"input": 3.0, "output": 15.0},
     "anthropic:claude-haiku-4-5": {"input": 1.0, "output": 5.0},
-    # OpenAI GPT-5.2 (Dec 2025)
+    # Anthropic Claude 4.5 (legacy)
+    "anthropic:claude-opus-4-5": {"input": 5.0, "output": 25.0},
+    "anthropic:claude-sonnet-4-5": {"input": 3.0, "output": 15.0},
+    # OpenAI GPT-5.5 / 5.4 (latest)
+    "openai:gpt-5.5": {"input": 5.0, "output": 30.0},
+    "openai:gpt-5.4": {"input": 2.50, "output": 15.0},
+    "openai:gpt-5.4-mini": {"input": 0.75, "output": 4.50},
+    "openai:gpt-5.4-nano": {"input": 0.20, "output": 1.25},
+    # OpenAI GPT-5.2 / 5.1
     "openai:gpt-5.2": {"input": 1.75, "output": 14.0},
     "openai:gpt-5.2-pro": {"input": 1.75, "output": 14.0},
-    # OpenAI GPT-5.1 (Nov 2025)
     "openai:gpt-5.1": {"input": 1.25, "output": 10.0},
-    # OpenAI GPT-5 family (Aug 2025)
+    # OpenAI GPT-5 family
     "openai:gpt-5": {"input": 1.25, "output": 10.0},
     "openai:gpt-5-mini": {"input": 0.25, "output": 2.0},
     "openai:gpt-5-nano": {"input": 0.05, "output": 0.40},
     # OpenAI reasoning models
     "openai:o3": {"input": 0.40, "output": 1.60},
     "openai:o4-mini": {"input": 1.10, "output": 4.40},
-    # Google Gemini 3 (Dec 2025)
+    # Google Gemini 3.5 / 3.1 (latest)
+    "google-gla:gemini-3.5-flash": {"input": 1.50, "output": 9.0},
+    "google-gla:gemini-3.1-pro-preview": {"input": 2.0, "output": 12.0},
+    # Google Gemini 3 (preview)
     "google-gla:gemini-3-pro-preview": {"input": 2.0, "output": 12.0},
     "google-gla:gemini-3-flash-preview": {"input": 0.50, "output": 3.0},
     # Google Gemini 2.5
@@ -103,8 +120,8 @@ MODEL_PRICING = {
     # Google Gemini 2.0
     "google-gla:gemini-2.0-flash": {"input": 0.10, "output": 0.40},
     # OpenRouter (vendor list price passed through; costs are indicative)
-    "openrouter:anthropic/claude-sonnet-4.5": {"input": 3.0, "output": 15.0},
-    "openrouter:anthropic/claude-opus-4.5": {"input": 15.0, "output": 75.0},
+    "openrouter:anthropic/claude-sonnet-4.6": {"input": 3.0, "output": 15.0},
+    "openrouter:anthropic/claude-opus-4.8": {"input": 5.0, "output": 25.0},
     "openrouter:openai/gpt-5": {"input": 1.25, "output": 10.0},
     "openrouter:openai/gpt-5-mini": {"input": 0.25, "output": 2.0},
     "openrouter:google/gemini-2.5-pro": {"input": 1.25, "output": 10.0},
