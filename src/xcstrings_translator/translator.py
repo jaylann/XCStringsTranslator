@@ -62,6 +62,14 @@ MODEL_ALIASES = {
     "gemini-2.5-flash": "google-gla:gemini-2.5-flash",
     # Google Gemini 2.0 (legacy)
     "gemini-2.0-flash": "google-gla:gemini-2.0-flash",
+    # OpenRouter (requires OPENROUTER_API_KEY). Any "openrouter:<vendor>/<model>"
+    # string also works directly via -m.
+    "or-sonnet": "openrouter:anthropic/claude-sonnet-4.5",
+    "or-opus": "openrouter:anthropic/claude-opus-4.5",
+    "or-gpt-5": "openrouter:openai/gpt-5",
+    "or-gpt-5-mini": "openrouter:openai/gpt-5-mini",
+    "or-gemini-pro": "openrouter:google/gemini-2.5-pro",
+    "or-gemini-flash": "openrouter:google/gemini-2.5-flash",
 }
 
 # For backward compatibility
@@ -94,6 +102,13 @@ MODEL_PRICING = {
     "google-gla:gemini-2.5-flash": {"input": 0.30, "output": 2.50},
     # Google Gemini 2.0
     "google-gla:gemini-2.0-flash": {"input": 0.10, "output": 0.40},
+    # OpenRouter (vendor list price passed through; costs are indicative)
+    "openrouter:anthropic/claude-sonnet-4.5": {"input": 3.0, "output": 15.0},
+    "openrouter:anthropic/claude-opus-4.5": {"input": 15.0, "output": 75.0},
+    "openrouter:openai/gpt-5": {"input": 1.25, "output": 10.0},
+    "openrouter:openai/gpt-5-mini": {"input": 0.25, "output": 2.0},
+    "openrouter:google/gemini-2.5-pro": {"input": 1.25, "output": 10.0},
+    "openrouter:google/gemini-2.5-flash": {"input": 0.30, "output": 2.50},
 }
 
 
@@ -429,8 +444,8 @@ Return the translations. Each item must have "key" (the original key unchanged) 
             # Track token usage
             usage = result.usage()
             with self._stats_lock:
-                self.stats.input_tokens += usage.request_tokens or 0
-                self.stats.output_tokens += usage.response_tokens or 0
+                self.stats.input_tokens += usage.input_tokens or 0
+                self.stats.output_tokens += usage.output_tokens or 0
 
             # Extract translations from structured output
             translations: dict[str, str] = {}

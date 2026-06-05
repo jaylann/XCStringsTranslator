@@ -477,8 +477,8 @@ class TestBatchSplitting:
                 translations=[TranslationItem(key="Hello", value="Bonjour")]
             )
             usage = MagicMock()
-            usage.request_tokens = 50
-            usage.response_tokens = 25
+            usage.input_tokens = 50
+            usage.output_tokens = 25
             result.usage.return_value = usage
             return result
 

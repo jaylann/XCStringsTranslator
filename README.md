@@ -12,6 +12,7 @@ xcstrings translate Localizable.xcstrings -l fr,es,it,ja,ko
 - **Context-aware** - Uses existing translations to understand meaning and tone
 - **Format-safe** - Preserves `%@`, `%lld`, `%1$@` and other specifiers
 - **35+ languages** - All major App Store locales
+- **Recursive** - Point at a directory to translate every nested `.xcstrings` file
 - **Cost estimation** - Preview costs before translating
 - **Validation** - Detect missing translations and format mismatches
 
@@ -25,6 +26,7 @@ pip install xcstrings-translator
 export ANTHROPIC_API_KEY=sk-...   # Claude
 export OPENAI_API_KEY=sk-...      # GPT
 export GOOGLE_API_KEY=...         # Gemini
+export OPENROUTER_API_KEY=sk-or-... # OpenRouter (any vendor)
 
 # Translate
 xcstrings translate Localizable.xcstrings -l fr,de,ja
@@ -50,6 +52,17 @@ xcstrings translate input.xcstrings -l fr -m sonnet     # balanced (default)
 xcstrings translate input.xcstrings -l fr -m gpt-5-nano # cheapest
 ```
 
+### OpenRouter
+
+Route through [OpenRouter](https://openrouter.ai) to reach any vendor with one key. Set
+`OPENROUTER_API_KEY`, then pass an `openrouter:vendor/model` string or a shorthand alias
+(`or-sonnet`, `or-opus`, `or-gpt-5`, `or-gpt-5-mini`, `or-gemini-pro`, `or-gemini-flash`):
+
+```bash
+xcstrings translate input.xcstrings -l fr -m openrouter:anthropic/claude-sonnet-4.5
+xcstrings translate input.xcstrings -l fr -m or-gpt-5
+```
+
 ## Commands
 
 | Command | Description |
@@ -65,6 +78,10 @@ xcstrings translate input.xcstrings -l fr -m gpt-5-nano # cheapest
 ```bash
 # Translate to multiple languages
 xcstrings translate Localizable.xcstrings -l fr,es,it,de,ja
+
+# Translate every .xcstrings under a project directory (recursive; asks first)
+xcstrings translate ./MyApp -l fr,es,it
+xcstrings translate ./MyApp --fill-missing -y   # skip the confirmation prompt
 
 # Estimate cost first
 xcstrings translate Localizable.xcstrings -l fr,es,it --dry-run
@@ -150,6 +167,7 @@ print(f"Cost: ${translator.stats.input_tokens * 3 / 1e6 + translator.stats.outpu
 | `--overwrite` | Replace existing | false |
 | `--dry-run` | Estimate only | false |
 | `-f, --fill-missing` | Auto-detect languages | false |
+| `-y, --yes` | Skip confirmation for directory runs | false |
 
 ## Troubleshooting
 
