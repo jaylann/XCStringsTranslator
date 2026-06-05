@@ -256,9 +256,7 @@ class TestDataModels:
         """StringEntry stores comment and localizations."""
         entry = StringEntry(
             comment="Test comment",
-            localizations={
-                "en": Localization(stringUnit=StringUnit(value="Test"))
-            }
+            localizations={"en": Localization(stringUnit=StringUnit(value="Test"))},
         )
 
         assert entry.comment == "Test comment"

@@ -35,7 +35,6 @@ from .models import (
     SUPPORTED_LANGUAGES,
 )
 
-
 # Model shorthand aliases -> provider:model format
 MODEL_ALIASES = {
     # Anthropic Claude (latest)
@@ -129,23 +128,21 @@ MODEL_PRICING = {
 }
 
 
-def get_model_cost(
-    model: str, input_tokens: int, output_tokens: int
-) -> float | None:
+def get_model_cost(model: str, input_tokens: int, output_tokens: int) -> float | None:
     """Calculate cost for given model and token counts."""
     resolved = resolve_model(model)
     if resolved not in MODEL_PRICING:
         return None
     pricing = MODEL_PRICING[resolved]
-    return (
-        (input_tokens / 1_000_000) * pricing["input"]
-        + (output_tokens / 1_000_000) * pricing["output"]
-    )
+    return (input_tokens / 1_000_000) * pricing["input"] + (
+        output_tokens / 1_000_000
+    ) * pricing["output"]
 
 
 @dataclass
 class TranslationStats:
     """Statistics from a translation run."""
+
     total_strings: int = 0
     translated: int = 0
     skipped_existing: int = 0
@@ -157,13 +154,18 @@ class TranslationStats:
 
 class TranslationItem(BaseModel):
     """A single translation pair."""
+
     key: str = Field(description="Original string key (unchanged)")
     value: str = Field(description="Translated string value")
 
 
 class TranslationResult(BaseModel):
     """Result from AI model for a batch of translations."""
-    translations: list[TranslationItem] = Field(description="List of translated strings")
+
+    translations: list[TranslationItem] = Field(
+        description="List of translated strings"
+    )
+
 
 class OutputParseError(RuntimeError):
     """Raised when the model output cannot be parsed as valid JSON."""
@@ -216,7 +218,7 @@ class XCStringsTranslator:
         self.app_context = app_context or "A mobile app. Tone: friendly, clear."
         self.stats = TranslationStats()
         self._stats_lock = threading.Lock()
-    
+
     def translate_file(
         self,
         xcstrings: XCStringsFile,
@@ -226,13 +228,13 @@ class XCStringsTranslator:
     ) -> XCStringsFile:
         """
         Translate an xcstrings file to the target languages.
-        
+
         Args:
             xcstrings: The xcstrings file to translate
             target_languages: List of language codes to translate to
             overwrite: If True, overwrite existing translations
             progress_callback: Optional callback for progress updates
-            
+
         Returns:
             The updated xcstrings file with new translations
         """
@@ -246,13 +248,17 @@ class XCStringsTranslator:
 
         # Pre-build work items (batch translations) across all languages, so we can
         # run many API calls in parallel (useful for higher-rate-limit accounts).
-        work_items: list[tuple[str, list[tuple[str, StringEntry, TranslationContext]]]] = []
+        work_items: list[
+            tuple[str, list[tuple[str, StringEntry, TranslationContext]]]
+        ] = []
         total_by_lang: dict[str, int] = {}
         completed_by_lang: dict[str, int] = {}
 
         for lang in target_languages:
             if lang not in SUPPORTED_LANGUAGES:
-                raise ValueError(f"Unsupported language: {lang}. Supported: {list(SUPPORTED_LANGUAGES.keys())}")
+                raise ValueError(
+                    f"Unsupported language: {lang}. Supported: {list(SUPPORTED_LANGUAGES.keys())}"
+                )
 
             strings_to_translate: list[tuple[str, StringEntry, TranslationContext]] = []
             for key, entry in translatable:
@@ -274,15 +280,22 @@ class XCStringsTranslator:
                 if batch:
                     work_items.append((lang, batch))
 
-        def translate_one(lang: str, batch: list[tuple[str, StringEntry, TranslationContext]]):
+        def translate_one(
+            lang: str, batch: list[tuple[str, StringEntry, TranslationContext]]
+        ):
             translations = self._translate_batch(batch, lang)
             return lang, translations, len(batch)
 
-        pending: deque[tuple[str, list[tuple[str, StringEntry, TranslationContext]]]] = deque(work_items)
+        pending: deque[
+            tuple[str, list[tuple[str, StringEntry, TranslationContext]]]
+        ] = deque(work_items)
 
         def split_batch(
             lang: str, batch: list[tuple[str, StringEntry, TranslationContext]]
-        ) -> tuple[list[tuple[str, StringEntry, TranslationContext]], list[tuple[str, StringEntry, TranslationContext]]]:
+        ) -> tuple[
+            list[tuple[str, StringEntry, TranslationContext]],
+            list[tuple[str, StringEntry, TranslationContext]],
+        ]:
             mid = max(1, len(batch) // 2)
             return batch[:mid], batch[mid:]
 
@@ -290,7 +303,9 @@ class XCStringsTranslator:
         # Parse failures are handled by splitting and re-queueing, which keeps the
         # UI responsive (progress continues moving) and avoids long "stuck" batches.
         with ThreadPoolExecutor(max_workers=self.concurrency) as executor:
-            in_flight: dict[Any, tuple[str, list[tuple[str, StringEntry, TranslationContext]]]] = {}
+            in_flight: dict[
+                Any, tuple[str, list[tuple[str, StringEntry, TranslationContext]]]
+            ] = {}
 
             def submit_next() -> None:
                 if not pending:
@@ -323,7 +338,9 @@ class XCStringsTranslator:
                             if progress_callback:
                                 progress_callback(
                                     lang=lang,
-                                    current=min(completed_by_lang[lang], total_by_lang[lang]),
+                                    current=min(
+                                        completed_by_lang[lang], total_by_lang[lang]
+                                    ),
                                     total=total_by_lang[lang] or 1,
                                     batch_size=1,
                                 )
@@ -345,7 +362,9 @@ class XCStringsTranslator:
                         if key in xcstrings.strings:
                             entry = xcstrings.strings[key]
                             entry.localizations[lang] = Localization(
-                                stringUnit=StringUnit(state="translated", value=translation)
+                                stringUnit=StringUnit(
+                                    state="translated", value=translation
+                                )
                             )
                             with self._stats_lock:
                                 self.stats.translated += 1
@@ -366,17 +385,17 @@ class XCStringsTranslator:
                     submit_next()
 
         return xcstrings
-    
+
     def _build_context(self, key: str, entry: StringEntry) -> TranslationContext:
         """Build translation context from existing translations."""
         existing = {}
         for lang, loc in entry.localizations.items():
             if loc.stringUnit and loc.stringUnit.value:
                 existing[lang] = loc.stringUnit.value
-        
+
         # Detect format specifiers
-        format_specs = re.findall(r'%[\d$]*[@dlfse]|%lld|%%', key)
-        
+        format_specs = re.findall(r"%[\d$]*[@dlfse]|%lld|%%", key)
+
         return TranslationContext(
             key=key,
             comment=entry.comment,
@@ -384,7 +403,7 @@ class XCStringsTranslator:
             has_format_specifiers=len(format_specs) > 0,
             format_specifiers=format_specs,
         )
-    
+
     def _translate_batch(
         self,
         batch: list[tuple[str, StringEntry, TranslationContext]],
@@ -486,7 +505,7 @@ Return the translations. Each item must have "key" (the original key unchanged) 
             with self._stats_lock:
                 self.stats.errors += len(batch)
             raise RuntimeError(f"Translation failed: {e}")
-    
+
     def estimate_cost(
         self,
         xcstrings: XCStringsFile,
@@ -494,12 +513,11 @@ Return the translations. Each item must have "key" (the original key unchanged) 
     ) -> dict[str, Any]:
         """
         Estimate the cost of translating the file.
-        
+
         Returns dict with estimated tokens and cost.
         """
         translatable = xcstrings.get_translatable_strings()
-        existing_langs = xcstrings.get_existing_languages()
-        
+
         # Estimate strings per language
         strings_per_lang = {}
         for lang in target_languages:
@@ -510,12 +528,12 @@ Return the translations. Each item must have "key" (the original key unchanged) 
                 elif not entry.localizations[lang].stringUnit:
                     count += 1
             strings_per_lang[lang] = count
-        
+
         total_strings = sum(strings_per_lang.values())
-        
+
         # Estimate tokens (rough: ~50 tokens per string including context)
         estimated_input_tokens = total_strings * 100  # Input with context
-        estimated_output_tokens = total_strings * 30   # Output
+        estimated_output_tokens = total_strings * 30  # Output
 
         # Calculate cost based on model
         estimated_cost = get_model_cost(
