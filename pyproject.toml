@@ -19,7 +19,9 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Localization",
+    "Typing :: Typed",
 ]
 
 dependencies = [
@@ -48,6 +50,9 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+xcstrings_translator = ["py.typed"]
 
 [tool.ruff]
 line-length = 88
