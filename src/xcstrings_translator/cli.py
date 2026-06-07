@@ -170,6 +170,7 @@ def _translate_one_file(
     dry_run: bool,
     app_context: str | None,
     fill_missing: bool,
+    fetch_live_pricing: bool = True,
 ) -> bool:
     """
     Translate a single .xcstrings file. Returns True on success (or skip), False on
@@ -231,6 +232,7 @@ def _translate_one_file(
         batch_size=batch_size,
         concurrency=concurrency,
         app_context=file_context,
+        fetch_live_pricing=fetch_live_pricing,
     )
 
     # Dry run - just show estimate
@@ -334,7 +336,10 @@ def _translate_one_file(
     table.add_row("Output tokens", f"{stats.output_tokens:,}")
 
     total_cost = get_model_cost(
-        translator.model, stats.input_tokens, stats.output_tokens
+        translator.model,
+        stats.input_tokens,
+        stats.output_tokens,
+        fetch_live=fetch_live_pricing,
     )
     if total_cost is not None:
         table.add_row("Estimated cost", f"${total_cost:.3f}")
@@ -412,6 +417,13 @@ def translate(
             help="Skip confirmation when translating a directory of files",
         ),
     ] = False,
+    no_fetch: Annotated[
+        bool,
+        typer.Option(
+            "--no-fetch",
+            help="Don't fetch live OpenRouter prices; use cached/static prices only",
+        ),
+    ] = False,
 ):
     """
     Translate an xcstrings file (or every .xcstrings file in a directory) using AI.
@@ -468,9 +480,11 @@ def translate(
             )
             raise typer.Exit(1)
 
-    # Validate model (accept aliases or provider:model format)
+    # Validate model (accept aliases or provider:model format). Every known alias
+    # and every provider:model string resolves to a value containing ":"; anything
+    # without one is an unrecognised shorthand (likely a typo).
     resolved = resolve_model(model)
-    if resolved not in MODEL_PRICING and ":" not in model:
+    if resolved not in MODEL_PRICING and ":" not in resolved:
         console.print(f"[red]Error:[/red] Unknown model: {model}")
         console.print(f"Shortcuts: {', '.join(MODEL_ALIASES.keys())}")
         console.print("Or use provider:model format (e.g., openai:gpt-4o)")
@@ -486,6 +500,7 @@ def translate(
         "dry_run": dry_run,
         "app_context": app_context,
         "fill_missing": fill_missing,
+        "fetch_live_pricing": not no_fetch,
     }
 
     # Single file: preserve original behavior (exit 1 on failure).
@@ -612,6 +627,13 @@ def estimate(
     model: Annotated[
         str, typer.Option("-m", "--model", help="Model (sonnet, gpt-4o, etc.)")
     ] = "sonnet",
+    no_fetch: Annotated[
+        bool,
+        typer.Option(
+            "--no-fetch",
+            help="Don't fetch live OpenRouter prices; use cached/static prices only",
+        ),
+    ] = False,
 ):
     """
     Estimate the cost of translating an xcstrings file.
@@ -641,7 +663,7 @@ def estimate(
         console.print(f"[red]Error loading file:[/red] {e}")
         raise typer.Exit(1) from e
 
-    translator = XCStringsTranslator(model=model)
+    translator = XCStringsTranslator(model=model, fetch_live_pricing=not no_fetch)
     estimate = translator.estimate_cost(xcstrings, target_langs)
 
     table = Table(title=f"Cost Estimate ({model})")
@@ -680,6 +702,10 @@ def estimate(
         "gpt-5.2": "Latest OpenAI",
         "gemini-3-pro": "Latest Gemini",
         "opus": "Best quality",
+        "or-gpt-5.4-nano": "OpenRouter, cheapest",
+        "or-gpt-5.4-mini": "OpenRouter, cheap",
+        "or-gemini-3.5-flash": "OpenRouter, fast",
+        "or-sonnet": "OpenRouter, balanced",
     }
 
     for model_name in model_notes:
@@ -687,6 +713,7 @@ def estimate(
             model_name,
             estimate["estimated_input_tokens"],
             estimate["estimated_output_tokens"],
+            fetch_live=not no_fetch,
         )
         if est_cost is not None:
             comparison.add_row(model_name, f"${est_cost:.2f}", model_notes[model_name])

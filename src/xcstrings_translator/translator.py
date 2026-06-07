@@ -35,6 +35,7 @@ from .models import (
     TranslationContext,
     XCStringsFile,
 )
+from .openrouter_pricing import get_openrouter_model_pricing
 
 # Model shorthand aliases -> provider:model format
 MODEL_ALIASES = {
@@ -70,11 +71,23 @@ MODEL_ALIASES = {
     # Google Gemini 2.0 (legacy)
     "gemini-2.0-flash": "google-gla:gemini-2.0-flash",
     # OpenRouter (requires OPENROUTER_API_KEY). Any "openrouter:<vendor>/<model>"
-    # string also works directly via -m.
-    "or-sonnet": "openrouter:anthropic/claude-sonnet-4.6",
+    # string also works directly via -m; pricing for those is fetched live.
+    # Anthropic via OpenRouter
     "or-opus": "openrouter:anthropic/claude-opus-4.8",
+    "or-sonnet": "openrouter:anthropic/claude-sonnet-4.6",
+    "or-haiku": "openrouter:anthropic/claude-haiku-4.5",
+    # OpenAI via OpenRouter
+    "or-gpt-5.5": "openrouter:openai/gpt-5.5",
+    "or-gpt-5.4": "openrouter:openai/gpt-5.4",
+    "or-gpt-5.4-mini": "openrouter:openai/gpt-5.4-mini",
+    "or-gpt-5.4-nano": "openrouter:openai/gpt-5.4-nano",
     "or-gpt-5": "openrouter:openai/gpt-5",
     "or-gpt-5-mini": "openrouter:openai/gpt-5-mini",
+    "or-gpt-5-nano": "openrouter:openai/gpt-5-nano",
+    # Google via OpenRouter
+    "or-gemini-3.5-flash": "openrouter:google/gemini-3.5-flash",
+    "or-gemini-3.1-pro": "openrouter:google/gemini-3.1-pro-preview",
+    "or-gemini-3-flash": "openrouter:google/gemini-3-flash-preview",
     "or-gemini-pro": "openrouter:google/gemini-2.5-pro",
     "or-gemini-flash": "openrouter:google/gemini-2.5-flash",
 }
@@ -129,12 +142,30 @@ MODEL_PRICING = {
 }
 
 
-def get_model_cost(model: str, input_tokens: int, output_tokens: int) -> float | None:
-    """Calculate cost for given model and token counts."""
+def get_model_cost(
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    *,
+    fetch_live: bool = True,
+) -> float | None:
+    """
+    Calculate cost for a given model and token counts.
+
+    For ``openrouter:<vendor>/<model>`` models the price is fetched live from
+    OpenRouter (cached), falling back to the static table when offline or unknown.
+    All other providers use the static ``MODEL_PRICING`` table. Returns None when
+    no price is available for the model.
+    """
     resolved = resolve_model(model)
-    if resolved not in MODEL_PRICING:
+    pricing: dict[str, float] | None = None
+    if resolved.startswith("openrouter:"):
+        slug = resolved.split(":", 1)[1]
+        pricing = get_openrouter_model_pricing(slug, fetch=fetch_live)
+    if pricing is None:
+        pricing = MODEL_PRICING.get(resolved)
+    if pricing is None:
         return None
-    pricing = MODEL_PRICING[resolved]
     return (input_tokens / 1_000_000) * pricing["input"] + (
         output_tokens / 1_000_000
     ) * pricing["output"]
@@ -200,6 +231,7 @@ class XCStringsTranslator:
         batch_size: int = 25,
         concurrency: int = 32,
         app_context: str | None = None,
+        fetch_live_pricing: bool = True,
     ):
         """
         Initialize the translator.
@@ -217,6 +249,7 @@ class XCStringsTranslator:
         self.batch_size = batch_size
         self.concurrency = max(1, int(concurrency))
         self.app_context = app_context or "A mobile app. Tone: friendly, clear."
+        self.fetch_live_pricing = fetch_live_pricing
         self.stats = TranslationStats()
         self._stats_lock = threading.Lock()
 
@@ -539,7 +572,10 @@ Return the translations. Each item must have "key" (the original key unchanged) 
 
         # Calculate cost based on model
         estimated_cost = get_model_cost(
-            self.model, estimated_input_tokens, estimated_output_tokens
+            self.model,
+            estimated_input_tokens,
+            estimated_output_tokens,
+            fetch_live=self.fetch_live_pricing,
         )
 
         return {
