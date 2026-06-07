@@ -494,9 +494,7 @@ class TestAgentReuse:
 
         # concurrency=1 runs all batches on one thread, making the
         # construction count deterministic.
-        translator = XCStringsTranslator(
-            model="sonnet", batch_size=2, concurrency=1
-        )
+        translator = XCStringsTranslator(model="sonnet", batch_size=2, concurrency=1)
         translator.translate_file(xc, ["fr"])
 
         # Agent built once and reused for all 5 batches, not rebuilt per batch.
