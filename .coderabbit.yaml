@@ -5,11 +5,12 @@ language: en-US
 early_access: false
 
 # Keep the bot's prose terse and technical.
-tone_instructions: "Be concise and technical. Prioritise correctness, security, and clear bugs over style nits."
+tone_instructions: "Be concise and technical. Prioritise correctness, security, and
+  data-loss bugs over style. Skip nitpicks unless they cause real problems."
 
 reviews:
   profile: chill                 # OSS-friendly: flag real issues, skip nitpicks
-  request_changes_workflow: false # never block a maintainer's merge
+  request_changes_workflow: true  # gate PRs; repo admin can still bypass
   high_level_summary: true
   poem: false
   review_status: true
@@ -28,18 +29,40 @@ reviews:
     - "!**/*.xcstrings"          # generated + AI-translated localization data
     - "!**/__pycache__/**"
 
-  # Natural-language guidance per path.
+  # Natural-language guidance per path — encodes this repo's real failure modes.
   path_instructions:
-    - path: "src/**/*.py"
+    - path: "src/xcstrings_translator/translator.py"
       instructions: >-
-        Library + CLI code. Flag: silent except-pass that hides real errors,
-        network calls without timeout/graceful fallback, float/decimal pricing
-        bugs, and any model alias added without matching pricing/tests. Public
-        API stays typed and backward compatible.
+        MODEL_ALIASES and MODEL_PRICING must stay in sync — every alias must
+        resolve to a provider:model that is priced (statically or via OpenRouter).
+        Flag any code path that could drop or reorder Apple format specifiers
+        (%@, %lld, %1$@, %2$lld) or lose plural variations (one/other/zero/few/
+        many) on round-trip. Check the ThreadPool/concurrency code for races on
+        the shared TranslationStats. Verify input/output token accounting and that
+        cost math uses the resolved model.
+    - path: "src/xcstrings_translator/openrouter_pricing.py"
+      instructions: >-
+        Network code must always set a timeout and degrade gracefully — a price
+        fetch must NEVER raise to the CLI. The broad `except Exception` is
+        intentional (it must also catch ImportError from a missing socks extra);
+        do not suggest narrowing it. Cache writes must be atomic. Prices must be
+        normalised to $/1M tokens and validated finite and non-negative before use.
+    - path: "src/xcstrings_translator/cli.py"
+      instructions: >-
+        Typer CLI. Flag in-place .xcstrings writes that could clobber user data
+        without -o/--output, dry-run paths that perform writes or live API calls,
+        model validation that should accept any resolved provider:model alias, and
+        language-tag normalisation regressions.
+    - path: "src/xcstrings_translator/models.py"
+      instructions: >-
+        Pydantic models mirror Apple's .xcstrings JSON. Flag changes that could
+        drop unknown keys, reorder, or otherwise alter the file on serialise/
+        deserialise round-trip — fidelity to the original file is critical.
     - path: "tests/**/*.py"
       instructions: >-
-        Ensure new behaviour has tests. Network must be mocked (no live calls).
-        Prefer pytest.approx for float assertions.
+        Every new behaviour needs a test. Network MUST be mocked — no live API/HTTP
+        calls. Use pytest.approx for float assertions. Prefer testing public
+        behaviour over internals.
 
   finishing_touches:
     docstrings:
