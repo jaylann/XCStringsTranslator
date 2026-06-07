@@ -56,8 +56,9 @@ and PyPI [Trusted Publishing](https://docs.pypi.org/trusted-publishers/) — no 
 3. Merge the release PR. release-please tags `vX.Y.Z` and creates the GitHub Release, which
    chains into `publish.yml` to build and publish to PyPI.
 
-A manual tag push (`git tag vX.Y.Z && git push origin vX.Y.Z`) still triggers `publish.yml`
-as a fallback.
+Publishing happens once, inside the release-please run (the `publish` job is chained to it).
+If you ever need to publish manually, run the **Publish to PyPI** workflow from the Actions
+tab (`workflow_dispatch`).
 
 **One-time setup** (PyPI maintainer, in the PyPI project settings → Publishing):
 register a trusted publisher with:
