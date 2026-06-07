@@ -23,6 +23,33 @@ reviews:
     base_branches:
       - main
 
+  # Auto-tag PRs from the fixed label set below (labels must exist in the repo).
+  suggested_labels: true
+  auto_apply_labels: true
+  labeling_instructions:
+    - label: bug
+      instructions: Apply when the PR fixes incorrect behaviour or a defect.
+    - label: feature
+      instructions: Apply when the PR adds new user-facing functionality.
+    - label: security
+      instructions: >-
+        Apply for auth, secrets, network, input-validation, or
+        dependency-vulnerability changes.
+    - label: dependencies
+      instructions: >-
+        Apply when dependency versions or the dependency set change
+        (pyproject.toml deps, lockfiles, dependabot).
+    - label: documentation
+      instructions: >-
+        Apply when changes are limited to docs (README, CHANGELOG, docstrings,
+        comments).
+    - label: tests
+      instructions: Apply when the PR is primarily adding or changing tests.
+    - label: breaking
+      instructions: >-
+        Apply when the change breaks backward compatibility (CLI flags, public
+        API, .xcstrings round-trip fidelity).
+
   # Don't waste review budget on generated / non-source files.
   path_filters:
     - "!**/*.lock"
