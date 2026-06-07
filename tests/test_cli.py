@@ -138,6 +138,38 @@ class TestTranslateCommand:
         assert result.exit_code == 1
         assert "unsupported" in result.output.lower()
 
+    def test_openrouter_alias_not_in_static_pricing_accepted(
+        self, sample_xcstrings_file
+    ):
+        """OpenRouter aliases that aren't in the static price table still validate."""
+        result = runner.invoke(
+            app,
+            [
+                "translate",
+                str(sample_xcstrings_file),
+                "-l",
+                "fr",
+                "-m",
+                "or-gpt-5.4-nano",
+                "--dry-run",
+                "--no-fetch",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "Unknown model" not in result.output
+        assert "openrouter:openai/gpt-5.4-nano" in result.output
+
+    def test_unknown_model_rejected(self, sample_xcstrings_file):
+        """A non-alias, non-provider:model string is still rejected."""
+        result = runner.invoke(
+            app,
+            ["translate", str(sample_xcstrings_file), "-l", "fr", "-m", "bogus-model"],
+        )
+
+        assert result.exit_code == 1
+        assert "Unknown model" in result.output
+
     def test_fill_missing_with_languages_mutually_exclusive(
         self, sample_xcstrings_file
     ):

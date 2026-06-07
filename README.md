@@ -61,13 +61,25 @@ xcstrings translate input.xcstrings -l fr -m gpt-5.4-nano # cheapest
 ### OpenRouter
 
 Route through [OpenRouter](https://openrouter.ai) to reach any vendor with one key. Set
-`OPENROUTER_API_KEY`, then pass an `openrouter:vendor/model` string or a shorthand alias
-(`or-sonnet`, `or-opus`, `or-gpt-5`, `or-gpt-5-mini`, `or-gemini-pro`, `or-gemini-flash`):
+`OPENROUTER_API_KEY`, then pass an `openrouter:vendor/model` string or a shorthand alias:
+
+| Alias | Model |
+|-------|-------|
+| `or-opus`, `or-sonnet`, `or-haiku` | Anthropic Claude (Opus 4.8 / Sonnet 4.6 / Haiku 4.5) |
+| `or-gpt-5.5`, `or-gpt-5.4`, `or-gpt-5.4-mini`, `or-gpt-5.4-nano` | OpenAI GPT-5.5 / 5.4 family |
+| `or-gpt-5`, `or-gpt-5-mini`, `or-gpt-5-nano` | OpenAI GPT-5 family |
+| `or-gemini-3.5-flash`, `or-gemini-3.1-pro`, `or-gemini-3-flash` | Google Gemini 3.x |
+| `or-gemini-pro`, `or-gemini-flash` | Google Gemini 2.5 Pro / Flash |
 
 ```bash
 xcstrings translate input.xcstrings -l fr -m openrouter:anthropic/claude-sonnet-4.6
-xcstrings translate input.xcstrings -l fr -m or-gpt-5
+xcstrings translate input.xcstrings -l fr -m or-gpt-5.4-nano
 ```
+
+Cost estimates for `openrouter:*` models are fetched **live** from OpenRouter's public
+model catalog (cached ~24h under `~/.cache/xcstrings-translator/`), so any model — even
+brand-new ones — gets accurate pricing in `estimate`/`--dry-run`. Pass `--no-fetch` to
+skip the network and use cached/static prices only.
 
 ## Commands
 
