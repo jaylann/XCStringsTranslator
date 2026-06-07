@@ -1,5 +1,6 @@
 """Tests for xcstrings_translator.translator - Translation engine."""
 
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -499,6 +500,73 @@ class TestAgentReuse:
 
         # Agent built once and reused for all 5 batches, not rebuilt per batch.
         assert MockAgent.call_count == 1
+
+    @staticmethod
+    def _xcstrings(n: int) -> XCStringsFile:
+        return XCStringsFile(
+            sourceLanguage="en",
+            strings={
+                f"Key{i}": StringEntry(
+                    localizations={
+                        "en": Localization(stringUnit=StringUnit(value=f"Key{i}")),
+                    }
+                )
+                for i in range(n)
+            },
+        )
+
+    def _run_with_fd_counting_agent(self, languages: list[str]) -> tuple[int, int]:
+        """Translate 40 strings at batch_size=1 (=> 40 batches per language) with a
+        fake Agent that opens a real OS file descriptor on construction, mimicking
+        the httpx socket each pydantic-ai Agent held open. Returns
+        (agents_constructed, distinct_fds_opened). Before the fix both would equal
+        40 * len(languages) (one Agent/socket per batch -> the [Errno 24] leak);
+        after the fix both equal len(languages).
+        """
+        opened_fds: list[int] = []
+        construct_count = 0
+
+        class _FdAgent:
+            def __init__(self, model, output_type=None, instructions=None):
+                nonlocal construct_count
+                construct_count += 1
+                # Hold a real fd open, exactly as the leaked httpx client did.
+                fd = os.open(os.devnull, os.O_RDONLY)
+                opened_fds.append(fd)
+
+            def run_sync(self, _user_message):
+                result = MagicMock()
+                result.output = TranslationResult(translations=[])
+                usage = MagicMock()
+                usage.input_tokens = 1
+                usage.output_tokens = 1
+                result.usage.return_value = usage
+                return result
+
+        try:
+            with patch("xcstrings_translator.translator.Agent", _FdAgent):
+                # concurrency=1 -> single thread, so the per-language thread-local
+                # cache makes the construction count deterministic.
+                translator = XCStringsTranslator(
+                    model="sonnet", batch_size=1, concurrency=1
+                )
+                translator.translate_file(self._xcstrings(40), languages)
+            return construct_count, len(opened_fds)
+        finally:
+            for fd in opened_fds:
+                os.close(fd)
+
+    def test_no_fd_leak_single_language(self):
+        """40 batches must not open 40 file descriptors (regression for #7)."""
+        constructed, fds = self._run_with_fd_counting_agent(["fr"])
+        assert constructed == 1
+        assert fds == 1
+
+    def test_no_fd_leak_scales_with_languages_not_batches(self):
+        """fd usage is bounded by #languages, not #batches."""
+        constructed, fds = self._run_with_fd_counting_agent(["fr", "de"])
+        assert constructed == 2
+        assert fds == 2
 
 
 class TestBatchSplitting:
