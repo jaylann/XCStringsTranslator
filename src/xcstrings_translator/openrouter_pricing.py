@@ -103,7 +103,7 @@ def _save_disk_cache(prices: dict[str, dict[str, float]]) -> None:
         tmp.write_text(payload)
         os.replace(tmp, path)
     except OSError:
-        pass
+        logger.debug("failed to persist OpenRouter price cache", exc_info=True)
 
 
 def get_openrouter_prices(*, fetch: bool = True) -> dict[str, dict[str, float]]:
