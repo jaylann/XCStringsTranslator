@@ -317,8 +317,6 @@ class TestTranslateBatch:
 
     def test_translate_batch_token_tracking(self, mock_agent):
         """Token usage is tracked in stats."""
-        MockAgent, mock_instance, mock_result = mock_agent
-
         translator = XCStringsTranslator(model="sonnet")
         entry = StringEntry(
             localizations={"en": Localization(stringUnit=StringUnit(value="Hello"))}
@@ -372,8 +370,6 @@ class TestTranslateFile:
 
     def test_translate_file_skip_existing(self, mock_agent):
         """overwrite=False skips existing translations."""
-        MockAgent, mock_instance, mock_result = mock_agent
-
         xc = XCStringsFile(
             sourceLanguage="en",
             strings={
@@ -447,8 +443,6 @@ class TestTranslateFile:
 
     def test_translate_file_unsupported_language(self, mock_agent):
         """ValueError raised for unsupported language."""
-        MockAgent, mock_instance, mock_result = mock_agent
-
         xc = XCStringsFile(sourceLanguage="en", strings={})
 
         translator = XCStringsTranslator(model="sonnet")
@@ -458,8 +452,6 @@ class TestTranslateFile:
 
     def test_translate_file_empty_xcstrings(self, mock_agent, empty_xcstrings):
         """Empty xcstrings file translates without error."""
-        MockAgent, mock_instance, mock_result = mock_agent
-
         translator = XCStringsTranslator(model="sonnet")
         result = translator.translate_file(empty_xcstrings, ["fr"])
 
