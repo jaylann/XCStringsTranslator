@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "xcstrings-translator"
-version = "1.1.0"
+version = "1.1.1"
 description = "Translate Apple Localizable.xcstrings files using Claude AI"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -53,6 +53,11 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 xcstrings_translator = ["py.typed"]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: end-to-end test exercising the real pydantic-ai/httpx stack against a local stub server",
+]
 
 [tool.ruff]
 line-length = 88
