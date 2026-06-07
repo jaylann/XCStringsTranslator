@@ -5,6 +5,13 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2](https://github.com/jaylann/XCStringsTranslator/compare/v1.1.1...v1.1.2) (2026-06-07)
+
+
+### Bug Fixes
+
+* resolve open code-scanning alerts ([#19](https://github.com/jaylann/XCStringsTranslator/issues/19)) ([dd85ab0](https://github.com/jaylann/XCStringsTranslator/commit/dd85ab0fcb19f342a5f315ac141e835b28fcac59))
+
 ## [1.1.1](https://github.com/jaylann/XCStringsTranslator/compare/v1.1.0...v1.1.1) (2026-06-07)
 
 
