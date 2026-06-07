@@ -1,0 +1,84 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit config. Lives on the default branch; read on every PR.
+# Docs: https://docs.coderabbit.ai/getting-started/yaml-configuration
+language: en-US
+early_access: false
+
+# Keep the bot's prose terse and technical.
+tone_instructions: "Be concise and technical. Prioritise correctness, security, and
+  data-loss bugs over style. Skip nitpicks unless they cause real problems."
+
+reviews:
+  profile: chill                 # OSS-friendly: flag real issues, skip nitpicks
+  request_changes_workflow: true  # gate PRs; repo admin can still bypass
+  high_level_summary: true
+  poem: false
+  review_status: true
+  abort_on_close: true           # stop reviewing if the PR closes mid-run
+  auto_title: false              # PR titles are written by hand here
+
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+
+  # Don't waste review budget on generated / non-source files.
+  path_filters:
+    - "!**/*.lock"
+    - "!**/*.xcstrings"          # generated + AI-translated localization data
+    - "!**/__pycache__/**"
+
+  # Natural-language guidance per path — encodes this repo's real failure modes.
+  path_instructions:
+    - path: "src/xcstrings_translator/translator.py"
+      instructions: >-
+        MODEL_ALIASES and MODEL_PRICING must stay in sync — every alias must
+        resolve to a provider:model that is priced (statically or via OpenRouter).
+        Flag any code path that could drop or reorder Apple format specifiers
+        (%@, %lld, %1$@, %2$lld) or lose plural variations (one/other/zero/few/
+        many) on round-trip. Check the ThreadPool/concurrency code for races on
+        the shared TranslationStats. Verify input/output token accounting and that
+        cost math uses the resolved model.
+    - path: "src/xcstrings_translator/openrouter_pricing.py"
+      instructions: >-
+        Network code must always set a timeout and degrade gracefully — a price
+        fetch must NEVER raise to the CLI. The broad `except Exception` is
+        intentional (it must also catch ImportError from a missing socks extra);
+        do not suggest narrowing it. Cache writes must be atomic. Prices must be
+        normalised to $/1M tokens and validated finite and non-negative before use.
+    - path: "src/xcstrings_translator/cli.py"
+      instructions: >-
+        Typer CLI. Flag in-place .xcstrings writes that could clobber user data
+        without -o/--output, dry-run paths that perform writes or live API calls,
+        model validation that should accept any resolved provider:model alias, and
+        language-tag normalisation regressions.
+    - path: "src/xcstrings_translator/models.py"
+      instructions: >-
+        Pydantic models mirror Apple's .xcstrings JSON. Flag changes that could
+        drop unknown keys, reorder, or otherwise alter the file on serialise/
+        deserialise round-trip — fidelity to the original file is critical.
+    - path: "tests/**/*.py"
+      instructions: >-
+        Every new behaviour needs a test. Network MUST be mocked — no live API/HTTP
+        calls. Use pytest.approx for float assertions. Prefer testing public
+        behaviour over internals.
+
+  finishing_touches:
+    docstrings:
+      enabled: false             # docstrings are authored deliberately here
+    unit_tests:
+      enabled: false             # propose tests in review, don't auto-add
+
+  tools:
+    ruff:
+      enabled: true              # matches the repo's existing ruff lint + format
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "CONTRIBUTING.md"
