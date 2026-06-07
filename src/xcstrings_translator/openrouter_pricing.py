@@ -12,14 +12,20 @@ rather than raising.
 from __future__ import annotations
 
 import json
+import logging
+import math
+import os
 import time
 from pathlib import Path
 
 import httpx
 
+logger = logging.getLogger(__name__)
+
 _MODELS_URL = "https://openrouter.ai/api/v1/models"
 _CACHE_TTL_SECONDS = 24 * 60 * 60
 _REQUEST_TIMEOUT_SECONDS = 5.0
+_MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 
 # Process-lifetime memo so a single CLI run never fetches twice.
 _memo: dict[str, dict[str, float]] | None = None
@@ -39,12 +45,16 @@ def _normalise(models: list[dict]) -> dict[str, dict[str, float]]:
             continue
         try:
             # API reports $/token; scale to $/1M to match MODEL_PRICING.
-            prices[slug] = {
-                "input": float(pricing["prompt"]) * 1_000_000,
-                "output": float(pricing["completion"]) * 1_000_000,
-            }
+            input_price = float(pricing["prompt"]) * 1_000_000
+            output_price = float(pricing["completion"]) * 1_000_000
         except (KeyError, TypeError, ValueError):
             continue
+        # Reject non-finite or negative prices so they cannot poison the cache.
+        if not (math.isfinite(input_price) and input_price >= 0):
+            continue
+        if not (math.isfinite(output_price) and output_price >= 0):
+            continue
+        prices[slug] = {"input": input_price, "output": output_price}
     return prices
 
 
@@ -62,7 +72,12 @@ def _save_disk_cache(prices: dict[str, dict[str, float]]) -> None:
     try:
         path = _cache_path()
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"fetched_at": time.time(), "prices": prices}))
+        payload = json.dumps({"fetched_at": time.time(), "prices": prices})
+        # Write to a temp file in the same dir, then atomically replace so a
+        # concurrent reader never observes a half-written file.
+        tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+        tmp.write_text(payload)
+        os.replace(tmp, path)
     except OSError:
         pass
 
@@ -87,6 +102,8 @@ def get_openrouter_prices(*, fetch: bool = True) -> dict[str, dict[str, float]]:
         try:
             resp = httpx.get(_MODELS_URL, timeout=_REQUEST_TIMEOUT_SECONDS)
             resp.raise_for_status()
+            if len(resp.content) > _MAX_RESPONSE_BYTES:
+                raise ValueError("OpenRouter response exceeds size cap")
             prices = _normalise(resp.json().get("data", []))
             if prices:
                 _save_disk_cache(prices)
@@ -95,7 +112,7 @@ def get_openrouter_prices(*, fetch: bool = True) -> dict[str, dict[str, float]]:
         except Exception:  # noqa: S110 - pricing is best-effort
             # Any failure (network, proxy, bad JSON) falls back to cached/static
             # prices rather than breaking the CLI.
-            pass
+            logger.debug("OpenRouter price fetch failed", exc_info=True)
 
     # Offline, or fetch failed/empty: a stale cache beats nothing.
     _memo = _load_disk_cache(ignore_ttl=True) or {}

@@ -3,6 +3,7 @@
 import json
 import time
 
+import httpx
 import pytest
 
 from xcstrings_translator import openrouter_pricing as orp
@@ -35,11 +36,18 @@ def _isolate(monkeypatch, tmp_path):
 
 
 class _FakeResponse:
-    def __init__(self, payload):
+    def __init__(self, payload, *, status_ok=True):
         self._payload = payload
+        self._status_ok = status_ok
+        self.content = json.dumps(payload).encode()
 
     def raise_for_status(self):
-        pass
+        if not self._status_ok:
+            raise httpx.HTTPStatusError(
+                "500",
+                request=None,
+                response=None,  # type: ignore[arg-type]
+            )
 
     def json(self):
         return self._payload
@@ -94,6 +102,26 @@ class TestFetchAndCache:
             raise RuntimeError("proxy exploded")
 
         monkeypatch.setattr(orp.httpx, "get", _boom)
+        assert orp.get_openrouter_prices() == {}
+
+    def test_memo_prevents_second_network_call(self, monkeypatch):
+        calls = {"n": 0}
+
+        def _counting_get(*a, **k):
+            calls["n"] += 1
+            return _FakeResponse(_SAMPLE_API)
+
+        monkeypatch.setattr(orp.httpx, "get", _counting_get)
+        orp.get_openrouter_prices()
+        orp.get_openrouter_prices()
+        assert calls["n"] == 1
+
+    def test_non_2xx_response_degrades_gracefully(self, monkeypatch):
+        monkeypatch.setattr(
+            orp.httpx,
+            "get",
+            lambda *a, **k: _FakeResponse(_SAMPLE_API, status_ok=False),
+        )
         assert orp.get_openrouter_prices() == {}
 
     def test_stale_cache_used_when_fetch_disabled(self, monkeypatch, tmp_path):
