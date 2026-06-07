@@ -524,7 +524,7 @@ Return the translations. Each item must have "key" (the original key unchanged) 
             result = agent.run_sync(user_message)
 
             # Track token usage
-            usage = result.usage()
+            usage = result.usage
             with self._stats_lock:
                 self.stats.input_tokens += usage.input_tokens or 0
                 self.stats.output_tokens += usage.output_tokens or 0

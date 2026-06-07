@@ -581,7 +581,7 @@ class TestBatchSplitting:
             usage = MagicMock()
             usage.input_tokens = 50
             usage.output_tokens = 25
-            result.usage.return_value = usage
+            result.usage = usage
             return result
 
         with patch("xcstrings_translator.translator.Agent") as MockAgent:
