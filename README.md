@@ -159,6 +159,7 @@ xcstrings.to_file("Localizable.xcstrings")
 
 # Stats
 print(f"Translated: {translator.stats.translated}")
+# Rates below are sonnet's ($3 in / $15 out per 1M tokens); adjust for your model.
 print(f"Cost: ${translator.stats.input_tokens * 3 / 1e6 + translator.stats.output_tokens * 15 / 1e6:.2f}")
 ```
 
