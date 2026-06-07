@@ -5,6 +5,14 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1](https://github.com/jaylann/XCStringsTranslator/compare/v1.1.0...v1.1.1) (2026-06-07)
+
+
+### Bug Fixes
+
+* access pydantic-ai usage as property ([#9](https://github.com/jaylann/XCStringsTranslator/issues/9)) ([#13](https://github.com/jaylann/XCStringsTranslator/issues/13)) ([15e47d6](https://github.com/jaylann/XCStringsTranslator/commit/15e47d678aff748e8608d34d97d61e347037b378))
+* stop file-descriptor leak by reusing agents ([#7](https://github.com/jaylann/XCStringsTranslator/issues/7)) ([#14](https://github.com/jaylann/XCStringsTranslator/issues/14)) ([f02a2d1](https://github.com/jaylann/XCStringsTranslator/commit/f02a2d18b636b332d1987bf74ff4fbff6a433d71))
+
 ## [1.1.0](https://github.com/jaylann/XCStringsTranslator/compare/v1.0.0...v1.1.0) (2026-06-07)
 
 
