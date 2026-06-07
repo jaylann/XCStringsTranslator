@@ -467,6 +467,42 @@ class TestTranslateFile:
         assert translator.stats.translated == 0
 
 
+class TestAgentReuse:
+    """Tests that agents are reused across batches (file-descriptor leak fix)."""
+
+    def test_agent_reused_across_batches(self, mock_agent):
+        """One agent is built per language even across multiple batches."""
+        MockAgent, mock_instance, mock_result = mock_agent
+        mock_result.output = TranslationResult(
+            translations=[
+                TranslationItem(key=f"Key{i}", value=f"Val{i}") for i in range(10)
+            ]
+        )
+
+        # 10 strings, batch_size=2 -> 5 batches for one language.
+        xc = XCStringsFile(
+            sourceLanguage="en",
+            strings={
+                f"Key{i}": StringEntry(
+                    localizations={
+                        "en": Localization(stringUnit=StringUnit(value=f"Key{i}")),
+                    }
+                )
+                for i in range(10)
+            },
+        )
+
+        # concurrency=1 runs all batches on one thread, making the
+        # construction count deterministic.
+        translator = XCStringsTranslator(
+            model="sonnet", batch_size=2, concurrency=1
+        )
+        translator.translate_file(xc, ["fr"])
+
+        # Agent built once and reused for all 5 batches, not rebuilt per batch.
+        assert MockAgent.call_count == 1
+
+
 class TestBatchSplitting:
     """Tests for batch splitting on parse errors."""
 

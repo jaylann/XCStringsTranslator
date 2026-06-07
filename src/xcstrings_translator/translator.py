@@ -252,6 +252,21 @@ class XCStringsTranslator:
         self.fetch_live_pricing = fetch_live_pricing
         self.stats = TranslationStats()
         self._stats_lock = threading.Lock()
+        self._thread_local = threading.local()
+
+    def _get_agent(
+        self, target_lang: str, system_prompt: str
+    ) -> Agent[None, TranslationResult]:
+        cache = getattr(self._thread_local, "agents", None)
+        if cache is None:
+            cache = self._thread_local.agents = {}
+        agent = cache.get(target_lang)
+        if agent is None:
+            agent = Agent(
+                self.model, output_type=TranslationResult, instructions=system_prompt
+            )
+            cache[target_lang] = agent
+        return agent
 
     def translate_file(
         self,
@@ -501,12 +516,9 @@ CRITICAL RULES:
 Return the translations. Each item must have "key" (the original key unchanged) and "value" (the translation)."""
 
         try:
-            # Create agent with structured output
-            agent: Agent[None, TranslationResult] = Agent(
-                self.model,
-                output_type=TranslationResult,
-                instructions=system_prompt,
-            )
+            # Reuse a per-language agent (cached per thread) to avoid leaking
+            # httpx clients/sockets across batches.
+            agent = self._get_agent(target_lang, system_prompt)
 
             # Run synchronously
             result = agent.run_sync(user_message)
