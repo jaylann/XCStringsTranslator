@@ -467,6 +467,98 @@ class TestTranslateFile:
         assert translator.stats.translated == 0
 
 
+class TestAgentReuse:
+    """Tests that agents are reused across batches (file-descriptor leak fix)."""
+
+    def test_agent_reused_across_batches(self, mock_agent):
+        """One agent is built per language even across multiple batches."""
+        MockAgent, mock_instance, mock_result = mock_agent
+        mock_result.output = TranslationResult(
+            translations=[
+                TranslationItem(key=f"Key{i}", value=f"Val{i}") for i in range(10)
+            ]
+        )
+
+        # 10 strings, batch_size=2 -> 5 batches for one language.
+        xc = XCStringsFile(
+            sourceLanguage="en",
+            strings={
+                f"Key{i}": StringEntry(
+                    localizations={
+                        "en": Localization(stringUnit=StringUnit(value=f"Key{i}")),
+                    }
+                )
+                for i in range(10)
+            },
+        )
+
+        # concurrency=1 runs all batches on one thread, making the
+        # construction count deterministic.
+        translator = XCStringsTranslator(model="sonnet", batch_size=2, concurrency=1)
+        translator.translate_file(xc, ["fr"])
+
+        # Agent built once and reused for all 5 batches, not rebuilt per batch.
+        assert MockAgent.call_count == 1
+
+    @staticmethod
+    def _xcstrings(n: int) -> XCStringsFile:
+        return XCStringsFile(
+            sourceLanguage="en",
+            strings={
+                f"Key{i}": StringEntry(
+                    localizations={
+                        "en": Localization(stringUnit=StringUnit(value=f"Key{i}")),
+                    }
+                )
+                for i in range(n)
+            },
+        )
+
+    def _count_agent_constructions(self, languages: list[str]) -> int:
+        """Translate 40 strings at batch_size=1 (=> 40 batches per language) and
+        count how many times the pydantic-ai Agent is constructed.
+
+        Each Agent construction creates its own un-cached ``httpx.AsyncClient``
+        (pydantic-ai's ``OpenAIProvider`` calls ``create_async_http_client()`` per
+        instance), so the construction count equals the number of HTTP clients /
+        open sockets held. Before the fix this was ``40 * len(languages)`` -- one
+        client per batch, which is the ``[Errno 24] Too many open files`` leak.
+        After the fix it is ``len(languages)``.
+        """
+        construct_count = 0
+
+        class _CountingAgent:
+            def __init__(self, model, output_type=None, instructions=None):
+                nonlocal construct_count
+                construct_count += 1
+
+            def run_sync(self, _user_message):
+                result = MagicMock()
+                result.output = TranslationResult(translations=[])
+                usage = MagicMock()
+                usage.input_tokens = 1
+                usage.output_tokens = 1
+                result.usage = usage
+                return result
+
+        with patch("xcstrings_translator.translator.Agent", _CountingAgent):
+            # concurrency=1 -> single thread, so the per-language thread-local
+            # cache makes the construction count deterministic.
+            translator = XCStringsTranslator(
+                model="sonnet", batch_size=1, concurrency=1
+            )
+            translator.translate_file(self._xcstrings(40), languages)
+        return construct_count
+
+    def test_no_fd_leak_single_language(self):
+        """40 batches must construct one Agent/httpx client, not 40 (regression #7)."""
+        assert self._count_agent_constructions(["fr"]) == 1
+
+    def test_no_fd_leak_scales_with_languages_not_batches(self):
+        """Client/fd usage is bounded by #languages, not #batches."""
+        assert self._count_agent_constructions(["fr", "de"]) == 2
+
+
 class TestBatchSplitting:
     """Tests for batch splitting on parse errors."""
 

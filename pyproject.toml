@@ -54,6 +54,11 @@ where = ["src"]
 [tool.setuptools.package-data]
 xcstrings_translator = ["py.typed"]
 
+[tool.pytest.ini_options]
+markers = [
+    "integration: end-to-end test exercising the real pydantic-ai/httpx stack against a local stub server",
+]
+
 [tool.ruff]
 line-length = 88
 target-version = "py311"
