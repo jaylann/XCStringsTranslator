@@ -1,26 +1,61 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
-# CodeRabbit configuration. Docs: https://docs.coderabbit.ai/guides/configure-coderabbit
+# CodeRabbit config. Lives on the default branch; read on every PR.
+# Docs: https://docs.coderabbit.ai/getting-started/yaml-configuration
 language: en-US
 early_access: false
 
+# Keep the bot's prose terse and technical.
+tone_instructions: "Be concise and technical. Prioritise correctness, security, and clear bugs over style nits."
+
 reviews:
-  profile: chill            # concise, signal-over-noise feedback
-  request_changes_workflow: false
+  profile: chill                 # OSS-friendly: flag real issues, skip nitpicks
+  request_changes_workflow: false # never block a maintainer's merge
   high_level_summary: true
   poem: false
   review_status: true
-  collapse_walkthrough: false
+  abort_on_close: true           # stop reviewing if the PR closes mid-run
+  auto_title: false              # PR titles are written by hand here
+
   auto_review:
     enabled: true
     drafts: false
     base_branches:
       - main
+
+  # Don't waste review budget on generated / non-source files.
   path_filters:
     - "!**/*.lock"
-    - "!**/*.xcstrings"     # generated/translated localization data, not source
+    - "!**/*.xcstrings"          # generated + AI-translated localization data
+    - "!**/__pycache__/**"
+
+  # Natural-language guidance per path.
+  path_instructions:
+    - path: "src/**/*.py"
+      instructions: >-
+        Library + CLI code. Flag: silent except-pass that hides real errors,
+        network calls without timeout/graceful fallback, float/decimal pricing
+        bugs, and any model alias added without matching pricing/tests. Public
+        API stays typed and backward compatible.
+    - path: "tests/**/*.py"
+      instructions: >-
+        Ensure new behaviour has tests. Network must be mocked (no live calls).
+        Prefer pytest.approx for float assertions.
+
+  finishing_touches:
+    docstrings:
+      enabled: false             # docstrings are authored deliberately here
+    unit_tests:
+      enabled: false             # propose tests in review, don't auto-add
+
   tools:
     ruff:
-      enabled: true         # matches the repo's existing ruff lint + format setup
+      enabled: true              # matches the repo's existing ruff lint + format
 
 chat:
   auto_reply: true
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "CONTRIBUTING.md"
