@@ -36,10 +36,17 @@ def _isolate(monkeypatch, tmp_path):
 
 
 class _FakeResponse:
-    def __init__(self, payload, *, status_ok=True):
-        self._payload = payload
+    """Stand-in for an ``httpx.stream`` context manager yielding a JSON body."""
+
+    def __init__(self, payload, *, status_ok=True, body=None):
         self._status_ok = status_ok
-        self.content = json.dumps(payload).encode()
+        self.content = body if body is not None else json.dumps(payload).encode()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
 
     def raise_for_status(self):
         if not self._status_ok:
@@ -49,8 +56,8 @@ class _FakeResponse:
                 response=None,  # type: ignore[arg-type]
             )
 
-    def json(self):
-        return self._payload
+    def iter_bytes(self):
+        yield self.content
 
 
 class TestNormalise:
@@ -71,7 +78,7 @@ class TestNormalise:
 class TestFetchAndCache:
     def test_fetch_populates_and_writes_cache(self, monkeypatch, tmp_path):
         monkeypatch.setattr(
-            orp.httpx, "get", lambda *a, **k: _FakeResponse(_SAMPLE_API)
+            orp.httpx, "stream", lambda *a, **k: _FakeResponse(_SAMPLE_API)
         )
         prices = orp.get_openrouter_prices()
         assert prices["openai/gpt-5.4-nano"]["input"] == pytest.approx(0.2)
@@ -90,7 +97,7 @@ class TestFetchAndCache:
         def _boom(*a, **k):
             raise AssertionError("network must not be hit when fetch=False")
 
-        monkeypatch.setattr(orp.httpx, "get", _boom)
+        monkeypatch.setattr(orp.httpx, "stream", _boom)
         prices = orp.get_openrouter_prices(fetch=False)
         assert prices == {"x/y": {"input": 1.0, "output": 2.0}}
 
@@ -101,7 +108,7 @@ class TestFetchAndCache:
         def _boom(*a, **k):
             raise RuntimeError("proxy exploded")
 
-        monkeypatch.setattr(orp.httpx, "get", _boom)
+        monkeypatch.setattr(orp.httpx, "stream", _boom)
         assert orp.get_openrouter_prices() == {}
 
     def test_memo_prevents_second_network_call(self, monkeypatch):
@@ -111,7 +118,7 @@ class TestFetchAndCache:
             calls["n"] += 1
             return _FakeResponse(_SAMPLE_API)
 
-        monkeypatch.setattr(orp.httpx, "get", _counting_get)
+        monkeypatch.setattr(orp.httpx, "stream", _counting_get)
         orp.get_openrouter_prices()
         orp.get_openrouter_prices()
         assert calls["n"] == 1
@@ -119,7 +126,7 @@ class TestFetchAndCache:
     def test_non_2xx_response_degrades_gracefully(self, monkeypatch):
         monkeypatch.setattr(
             orp.httpx,
-            "get",
+            "stream",
             lambda *a, **k: _FakeResponse(_SAMPLE_API, status_ok=False),
         )
         assert orp.get_openrouter_prices() == {}
@@ -138,11 +145,51 @@ class TestFetchAndCache:
             "x/y": {"input": 9.0, "output": 9.0}
         }
 
+    def test_corrupt_cache_degrades_gracefully(self, tmp_path):
+        # prices is the wrong shape / has malformed entries; bad entries are dropped.
+        (tmp_path / "models.json").write_text(
+            json.dumps(
+                {
+                    "fetched_at": time.time(),
+                    "prices": {
+                        "good/model": {"input": 1.0, "output": 2.0},
+                        "bad/missing-output": {"input": 1.0},
+                        "bad/non-numeric": {"input": "abc", "output": "def"},
+                        "bad/negative": {"input": -1.0, "output": 2.0},
+                        "bad/not-a-dict": [1, 2, 3],
+                    },
+                }
+            )
+        )
+        assert orp.get_openrouter_prices(fetch=False) == {
+            "good/model": {"input": 1.0, "output": 2.0}
+        }
+
+    def test_non_numeric_fetched_at_is_ignored(self):
+        orp._cache_path().write_text(
+            json.dumps(
+                {"fetched_at": "soon", "prices": {"x/y": {"input": 1.0, "output": 2.0}}}
+            )
+        )
+        # Non-numeric fetched_at must not raise on the TTL comparison; the fresh-load
+        # path treats it as stale and the offline fallback serves the cached prices.
+        assert orp.get_openrouter_prices(fetch=False) == {
+            "x/y": {"input": 1.0, "output": 2.0}
+        }
+
+    def test_oversized_response_degrades_gracefully(self, monkeypatch):
+        monkeypatch.setattr(orp, "_MAX_RESPONSE_BYTES", 8)
+        monkeypatch.setattr(
+            orp.httpx, "stream", lambda *a, **k: _FakeResponse(_SAMPLE_API)
+        )
+        # Body exceeds the cap -> streaming aborts and degrades to empty without raising.
+        assert orp.get_openrouter_prices() == {}
+
 
 class TestGetModelCostIntegration:
     def test_openrouter_model_uses_live_pricing(self, monkeypatch):
         monkeypatch.setattr(
-            orp.httpx, "get", lambda *a, **k: _FakeResponse(_SAMPLE_API)
+            orp.httpx, "stream", lambda *a, **k: _FakeResponse(_SAMPLE_API)
         )
         # or-gpt-5.4-nano is NOT in the static table, so a non-None cost proves dynamic lookup.
         cost = get_model_cost("or-gpt-5.4-nano", 1_000_000, 1_000_000)
@@ -162,7 +209,7 @@ class TestGetModelCostIntegration:
         def _boom(*a, **k):
             raise AssertionError("fetch_live=False must not hit network")
 
-        monkeypatch.setattr(orp.httpx, "get", _boom)
+        monkeypatch.setattr(orp.httpx, "stream", _boom)
         # No cache + no fetch -> no price -> None, without raising.
         assert get_model_cost("or-gpt-5.4-nano", 1000, 1000, fetch_live=False) is None
 

@@ -32,6 +32,7 @@ _memo: dict[str, dict[str, float]] | None = None
 
 
 def _cache_path() -> Path:
+    """Return the on-disk path of the cached OpenRouter price table."""
     return Path.home() / ".cache" / "xcstrings-translator" / "openrouter_models.json"
 
 
@@ -58,17 +59,40 @@ def _normalise(models: list[dict]) -> dict[str, dict[str, float]]:
     return prices
 
 
+def _validated_prices(raw_prices: object) -> dict[str, dict[str, float]]:
+    """Coerce a loaded cache payload into clean ``slug -> {input, output}`` data, dropping bad entries."""
+    if not isinstance(raw_prices, dict):
+        return {}
+    out: dict[str, dict[str, float]] = {}
+    for slug, entry in raw_prices.items():
+        if not isinstance(slug, str) or not isinstance(entry, dict):
+            continue
+        try:
+            input_price = float(entry["input"])
+            output_price = float(entry["output"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not (math.isfinite(input_price) and input_price >= 0):
+            continue
+        if not (math.isfinite(output_price) and output_price >= 0):
+            continue
+        out[slug] = {"input": input_price, "output": output_price}
+    return out
+
+
 def _load_disk_cache(*, ignore_ttl: bool = False) -> dict[str, dict[str, float]] | None:
+    """Read and validate the disk cache, returning None when missing, stale, or corrupt."""
     try:
         raw = json.loads(_cache_path().read_text())
         if not ignore_ttl and time.time() - raw["fetched_at"] > _CACHE_TTL_SECONDS:
             return None
-        return raw["prices"]
-    except (OSError, ValueError, KeyError):
+        return _validated_prices(raw["prices"])
+    except (OSError, ValueError, KeyError, TypeError):
         return None
 
 
 def _save_disk_cache(prices: dict[str, dict[str, float]]) -> None:
+    """Atomically persist the price table to the disk cache (best-effort; never raises)."""
     try:
         path = _cache_path()
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -100,11 +124,18 @@ def get_openrouter_prices(*, fetch: bool = True) -> dict[str, dict[str, float]]:
 
     if fetch:
         try:
-            resp = httpx.get(_MODELS_URL, timeout=_REQUEST_TIMEOUT_SECONDS)
-            resp.raise_for_status()
-            if len(resp.content) > _MAX_RESPONSE_BYTES:
-                raise ValueError("OpenRouter response exceeds size cap")
-            prices = _normalise(resp.json().get("data", []))
+            with httpx.stream(
+                "GET", _MODELS_URL, timeout=_REQUEST_TIMEOUT_SECONDS
+            ) as resp:
+                resp.raise_for_status()
+                chunks: list[bytes] = []
+                total = 0
+                for chunk in resp.iter_bytes():
+                    total += len(chunk)
+                    if total > _MAX_RESPONSE_BYTES:
+                        raise ValueError("OpenRouter response exceeds size cap")
+                    chunks.append(chunk)
+            prices = _normalise(json.loads(b"".join(chunks)).get("data", []))
             if prices:
                 _save_disk_cache(prices)
                 _memo = prices
