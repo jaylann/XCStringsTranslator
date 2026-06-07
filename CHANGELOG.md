@@ -5,6 +5,13 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0](https://github.com/jaylann/XCStringsTranslator/compare/v1.0.0...v1.1.0) (2026-06-07)
+
+
+### Features
+
+* live OpenRouter pricing and newest-model aliases ([#8](https://github.com/jaylann/XCStringsTranslator/issues/8)) ([d4d5d36](https://github.com/jaylann/XCStringsTranslator/commit/d4d5d361bd0b830caa558b2094aaca0b8dd5228c))
+
 ## [Unreleased]
 
 ## [1.1.0]
