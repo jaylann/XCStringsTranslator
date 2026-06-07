@@ -538,7 +538,7 @@ class TestAgentReuse:
                 usage = MagicMock()
                 usage.input_tokens = 1
                 usage.output_tokens = 1
-                result.usage.return_value = usage
+                result.usage = usage
                 return result
 
         with patch("xcstrings_translator.translator.Agent", _CountingAgent):
