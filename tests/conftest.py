@@ -165,7 +165,7 @@ def mock_agent():
         mock_usage = MagicMock()
         mock_usage.input_tokens = 100
         mock_usage.output_tokens = 50
-        mock_result.usage.return_value = mock_usage
+        mock_result.usage = mock_usage
 
         mock_instance.run_sync.return_value = mock_result
         MockAgent.return_value = mock_instance
@@ -193,7 +193,7 @@ def mock_agent_with_custom_response():
             mock_usage = MagicMock()
             mock_usage.input_tokens = input_tokens
             mock_usage.output_tokens = output_tokens
-            mock_result.usage.return_value = mock_usage
+            mock_result.usage = mock_usage
 
             mock_instance.run_sync.return_value = mock_result
             MockAgent.return_value = mock_instance
