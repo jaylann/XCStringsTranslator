@@ -306,9 +306,7 @@ class TestProviderKeySetup:
             monkeypatch.delenv(env, raising=False)
         monkeypatch.setattr("sys.stdin.isatty", lambda: True)
         # Pick provider #2 (OpenAI) from the menu, then enter a key.
-        monkeypatch.setattr(
-            "xcstrings_translator.cli.IntPrompt.ask", lambda *a, **k: 2
-        )
+        monkeypatch.setattr("xcstrings_translator.cli.IntPrompt.ask", lambda *a, **k: 2)
         monkeypatch.setattr(
             "xcstrings_translator.cli.Prompt.ask", lambda *a, **k: "sk-entered"
         )
