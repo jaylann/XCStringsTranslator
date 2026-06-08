@@ -9,7 +9,7 @@ reviewCadence:
     type: automatic # automatic | auto_pause | manual
     timeWindow: 15 # minutes
     pushesToTrigger: 3
-pullRequestApprovalActive: false
+pullRequestApprovalActive: true # approve PRs that come back with zero findings
 isRequestChangesActive: true # gate PRs (mirrors CodeRabbit request_changes_workflow)
 runOnDraft: false # mirrors CodeRabbit auto_review.drafts: false
 
@@ -51,11 +51,19 @@ suggestionControl:
 # ── PR summary ───────────────────────────────────────────────────────────────
 summary:
     generatePRSummary: true
-    behaviourForNewCommits: replace
+    behaviourForNewCommits: none # don't rewrite the summary on every push
     behaviourForExistingDescription: concatenate # don't clobber hand-written descriptions
     customInstructions: >-
         Be concise and technical. Prioritise correctness, security, and
         data-loss bugs over style. Skip nitpicks unless they cause real problems.
+
+# ── custom messages ──────────────────────────────────────────────────────────
+# Post the start/end review banners only when the PR opens, not on every push.
+customMessages:
+    startReviewMessage:
+        status: only_when_opened # every_push | only_when_opened | off
+    endReviewMessage:
+        status: only_when_opened
 
 # ── kody rules ───────────────────────────────────────────────────────────────
 # Sync the markdown rule files under .kody/rules/ into Kody Rules.
