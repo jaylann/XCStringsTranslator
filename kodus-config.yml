@@ -1,0 +1,64 @@
+version: 2.0
+
+# ── general ──────────────────────────────────────────────────────────────────
+automatedReviewActive: true
+showStatusFeedback: true
+# This file is the source of truth — it overrides dashboard preferences.
+kodusConfigFileOverridesWebPreferences: true
+reviewCadence:
+    type: automatic # automatic | auto_pause | manual
+    timeWindow: 15 # minutes
+    pushesToTrigger: 3
+pullRequestApprovalActive: false
+isRequestChangesActive: true # gate PRs (mirrors CodeRabbit request_changes_workflow)
+runOnDraft: false # mirrors CodeRabbit auto_review.drafts: false
+
+# Generated / vendored paths excluded from review.
+ignorePaths:
+    - '**/*.xcstrings' # AI-translated localization data, not source
+    - '**/*.lock'
+    - '**/__pycache__/**'
+    - '.venv/**'
+    - 'dist/**'
+    - '**/*.egg-info/**'
+    - '.mypy_cache/**'
+    - '.pytest_cache/**'
+    - '.ruff_cache/**'
+
+ignoredTitleKeywords: []
+baseBranches:
+    - main
+enableCommittableSuggestions: true
+byokModel: '' # inherit the configured main model (deepseek-v4-pro)
+
+# ── review categories ────────────────────────────────────────────────────────
+codeReviewVersion: v2
+reviewOptions:
+    bug: true
+    performance: true
+    security: true
+    business_logic: true
+
+# ── suggestion control ───────────────────────────────────────────────────────
+# Surface medium+ severity; still skip low-severity nitpicks.
+suggestionControl:
+    groupingMode: full # minimal | full
+    applyFiltersToKodyRules: false
+    limitationType: pr # file | pr | severity
+    maxSuggestions: 9
+    severityLevelFilter: medium # low | medium | high | critical
+
+# ── PR summary ───────────────────────────────────────────────────────────────
+summary:
+    generatePRSummary: true
+    behaviourForNewCommits: replace
+    behaviourForExistingDescription: concatenate # don't clobber hand-written descriptions
+    customInstructions: >-
+        Be concise and technical. Prioritise correctness, security, and
+        data-loss bugs over style. Skip nitpicks unless they cause real problems.
+
+# ── kody rules ───────────────────────────────────────────────────────────────
+# Sync the markdown rule files under .kody/rules/ into Kody Rules.
+ideRulesSyncEnabled: true
+kodyRulesGeneratorEnabled: true
+llmGeneratedMemoriesRequireApproval: true
