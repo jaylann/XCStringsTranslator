@@ -1,14 +1,18 @@
 """Tests for xcstrings_translator.cli - CLI commands."""
 
 import json
+import os
 from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
 
 from xcstrings_translator.cli import (
     _canonicalize_bcp47_tag,
+    _ensure_provider_and_key,
     _normalize_language_tag,
     _parse_target_languages,
+    _provider_for_model,
+    _save_env_key,
     app,
 )
 from xcstrings_translator.models import SUPPORTED_LANGUAGES
@@ -239,6 +243,80 @@ class TestTranslateCommand:
 
             assert result.exit_code == 0
             assert mock_instance.translate_file.called
+
+
+class TestProviderKeySetup:
+    """Tests for the interactive provider + API-key setup helpers."""
+
+    def test_provider_for_model(self):
+        assert _provider_for_model("anthropic:claude-sonnet-4-6") == "anthropic"
+        assert _provider_for_model("openai:gpt-5.4") == "openai"
+        assert _provider_for_model("google-gla:gemini-2.5-flash") == "google-gla"
+        assert _provider_for_model("openrouter:anthropic/claude-sonnet-4.6") == (
+            "openrouter"
+        )
+
+    def test_save_env_key_writes_and_exports(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("MY_TEST_KEY", raising=False)
+        _save_env_key("MY_TEST_KEY", "abc123")
+        assert os.environ["MY_TEST_KEY"] == "abc123"
+        env_file = tmp_path / ".env"
+        assert env_file.exists()
+        assert "MY_TEST_KEY" in env_file.read_text()
+        assert "abc123" in env_file.read_text()
+
+    def test_save_env_key_updates_without_clobbering(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".env").write_text("OTHER_KEY=keepme\n")
+        _save_env_key("ANTHROPIC_API_KEY", "sk-new")
+        content = (tmp_path / ".env").read_text()
+        assert "OTHER_KEY=keepme" in content
+        assert "sk-new" in content
+
+    def test_ensure_key_present_returns_unchanged(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-openai")
+        model, resolved = _ensure_provider_and_key("gpt-5.4")
+        assert model == "gpt-5.4"
+        assert resolved == "openai:gpt-5.4"
+
+    def test_ensure_default_model_with_anthropic_key(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant")
+        model, resolved = _ensure_provider_and_key(None)
+        assert model == "sonnet"
+        assert resolved == "anthropic:claude-sonnet-4-6"
+
+    def test_ensure_non_tty_no_prompt(self, monkeypatch):
+        # No key, no TTY -> must not prompt; falls back to sonnet default.
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        model, resolved = _ensure_provider_and_key(None)
+        assert model == "sonnet"
+
+    def test_ensure_dry_run_skips_key(self, monkeypatch):
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        # require_key=False (dry run) must not prompt even on a TTY.
+        model, resolved = _ensure_provider_and_key("gpt-5.4", require_key=False)
+        assert resolved == "openai:gpt-5.4"
+
+    def test_ensure_menu_then_key_prompt(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        for env in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
+            monkeypatch.delenv(env, raising=False)
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        # Pick provider #2 (OpenAI) from the menu, then enter a key.
+        monkeypatch.setattr(
+            "xcstrings_translator.cli.IntPrompt.ask", lambda *a, **k: 2
+        )
+        monkeypatch.setattr(
+            "xcstrings_translator.cli.Prompt.ask", lambda *a, **k: "sk-entered"
+        )
+        model, resolved = _ensure_provider_and_key(None)
+        assert model == "gpt-5.4"
+        assert resolved == "openai:gpt-5.4"
+        assert os.environ["OPENAI_API_KEY"] == "sk-entered"
+        assert "OPENAI_API_KEY" in (tmp_path / ".env").read_text()
 
 
 class TestInfoCommand:
