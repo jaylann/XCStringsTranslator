@@ -17,9 +17,11 @@ import sys
 from pathlib import Path
 from typing import Annotated
 
+import readchar
 import typer
 from dotenv import load_dotenv, set_key
 from rich.console import Console
+from rich.live import Live
 from rich.panel import Panel
 from rich.progress import (
     BarColumn,
@@ -97,8 +99,32 @@ def _save_env_key(env_var: str, value: str) -> None:
     set_key(str(env_path), env_var, value)
 
 
-def _render_provider_menu() -> dict:
-    """Show a provider picker and return the chosen provider metadata dict."""
+def _provider_menu_panel(selected: int) -> Panel:
+    """Render the provider picker with the current row highlighted."""
+    table = Table(show_header=False, box=None, pad_edge=False)
+    table.add_column(width=2)
+    table.add_column("Provider", no_wrap=True)
+    table.add_column("Default model")
+    for i, p in enumerate(PROVIDERS):
+        if i == selected:
+            table.add_row(
+                "[cyan]❯[/cyan]",
+                f"[bold cyan]{p['label']}[/bold cyan]",
+                f"[cyan]{p['default_model']}[/cyan]",
+            )
+        else:
+            table.add_row("", p["label"], f"[green]{p['default_model']}[/green]")
+    return Panel(
+        table,
+        title="[bold]No API key found — choose a provider[/bold]",
+        subtitle="[dim]↑/↓ move · enter select[/dim]",
+        border_style="cyan",
+        padding=(1, 2),
+    )
+
+
+def _render_provider_menu_numbered() -> dict:
+    """Fallback numbered picker for non-TTY environments (e.g. tests, pipes)."""
     table = Table(show_header=True, header_style="bold cyan", box=None, pad_edge=False)
     table.add_column("#", style="cyan", justify="right")
     table.add_column("Provider", style="bold")
@@ -119,6 +145,41 @@ def _render_provider_menu() -> dict:
         default=1,
     )
     return PROVIDERS[choice - 1]
+
+
+def _render_provider_menu() -> dict:
+    """
+    Arrow-key provider picker. Use ↑/↓ (or j/k) to move, Enter to select; the
+    number keys jump straight to a row. Falls back to a numbered prompt when
+    stdin is not an interactive TTY.
+    """
+    if not sys.stdin.isatty():
+        return _render_provider_menu_numbered()
+
+    selected = 0
+    with Live(
+        _provider_menu_panel(selected),
+        console=console,
+        auto_refresh=False,
+        transient=False,
+    ) as live:
+        while True:
+            key = readchar.readkey()
+            if key in (readchar.key.UP, "k"):
+                selected = (selected - 1) % len(PROVIDERS)
+            elif key in (readchar.key.DOWN, "j"):
+                selected = (selected + 1) % len(PROVIDERS)
+            elif key in (readchar.key.ENTER, "\r", "\n"):
+                break
+            elif key in (readchar.key.CTRL_C, "\x03"):
+                raise KeyboardInterrupt
+            elif key.isdigit() and 1 <= int(key) <= len(PROVIDERS):
+                selected = int(key) - 1
+                live.update(_provider_menu_panel(selected), refresh=True)
+                break
+            live.update(_provider_menu_panel(selected), refresh=True)
+    console.print(f"[green]✓[/green] {PROVIDERS[selected]['label']}\n")
+    return PROVIDERS[selected]
 
 
 def _prompt_api_key(provider: dict) -> None:

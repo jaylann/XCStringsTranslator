@@ -12,6 +12,7 @@ from xcstrings_translator.cli import (
     _normalize_language_tag,
     _parse_target_languages,
     _provider_for_model,
+    _render_provider_menu,
     _save_env_key,
     app,
 )
@@ -300,13 +301,52 @@ class TestProviderKeySetup:
         model, resolved = _ensure_provider_and_key("gpt-5.4", require_key=False)
         assert resolved == "openai:gpt-5.4"
 
+    def _feed_keys(self, monkeypatch, keys):
+        """Patch readchar.readkey to yield a fixed sequence of keystrokes."""
+        it = iter(keys)
+        monkeypatch.setattr(
+            "xcstrings_translator.cli.readchar.readkey", lambda: next(it)
+        )
+
+    def test_arrow_menu_down_then_enter(self, monkeypatch):
+        import readchar
+
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        # Move down once (Anthropic -> OpenAI), then select.
+        self._feed_keys(monkeypatch, [readchar.key.DOWN, readchar.key.ENTER])
+        provider = _render_provider_menu()
+        assert provider["key"] == "openai"
+
+    def test_arrow_menu_wraps_up(self, monkeypatch):
+        import readchar
+
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        # Up from the first row wraps to the last (OpenRouter).
+        self._feed_keys(monkeypatch, [readchar.key.UP, readchar.key.ENTER])
+        provider = _render_provider_menu()
+        assert provider["key"] == "openrouter"
+
+    def test_arrow_menu_number_shortcut(self, monkeypatch):
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        self._feed_keys(monkeypatch, ["3"])  # number jumps and selects
+        provider = _render_provider_menu()
+        assert provider["key"] == "google-gla"
+
+    def test_menu_falls_back_to_numbered_off_tty(self, monkeypatch):
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        monkeypatch.setattr("xcstrings_translator.cli.IntPrompt.ask", lambda *a, **k: 2)
+        provider = _render_provider_menu()
+        assert provider["key"] == "openai"
+
     def test_ensure_menu_then_key_prompt(self, tmp_path, monkeypatch):
+        import readchar
+
         monkeypatch.chdir(tmp_path)
         for env in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
             monkeypatch.delenv(env, raising=False)
         monkeypatch.setattr("sys.stdin.isatty", lambda: True)
-        # Pick provider #2 (OpenAI) from the menu, then enter a key.
-        monkeypatch.setattr("xcstrings_translator.cli.IntPrompt.ask", lambda *a, **k: 2)
+        # Arrow down to provider #2 (OpenAI), select, then enter a key.
+        self._feed_keys(monkeypatch, [readchar.key.DOWN, readchar.key.ENTER])
         monkeypatch.setattr(
             "xcstrings_translator.cli.Prompt.ask", lambda *a, **k: "sk-entered"
         )
