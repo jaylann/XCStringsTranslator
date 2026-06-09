@@ -58,19 +58,13 @@ summary:
         data-loss bugs over style. Skip nitpicks unless they cause real problems.
 
 # ── custom messages ──────────────────────────────────────────────────────────
-# Post the start/end review banners only when the PR opens, not on every push.
+# Fully disable the start banner and the "review complete" comment.
+# (only_when_opened still posts the completion comment on pushes; off does not.)
 customMessages:
     startReviewMessage:
-        status: only_when_opened # every_push | only_when_opened | off
-        # Drop the @changeSummary stats table and @changedFiles list.
-        content: |
-            ## Code Review Started 🚀
-
-            Kody is reviewing the changes and will post findings shortly.
-
-            @reviewCadence
+        status: off # every_push | only_when_opened | off
     endReviewMessage:
-        status: only_when_opened
+        status: off
 
 # ── kody rules ───────────────────────────────────────────────────────────────
 # Sync the markdown rule files under .kody/rules/ into Kody Rules.
