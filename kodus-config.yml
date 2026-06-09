@@ -62,6 +62,13 @@ summary:
 customMessages:
     startReviewMessage:
         status: only_when_opened # every_push | only_when_opened | off
+        # Drop the @changeSummary stats table and @changedFiles list.
+        content: |
+            ## Code Review Started 🚀
+
+            Kody is reviewing the changes and will post findings shortly.
+
+            @reviewCadence
     endReviewMessage:
         status: only_when_opened
 
