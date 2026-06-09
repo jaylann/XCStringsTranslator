@@ -11,12 +11,17 @@ Usage:
 
 from __future__ import annotations
 
+import os
 import re
+import sys
 from pathlib import Path
 from typing import Annotated
 
+import readchar
 import typer
+from dotenv import load_dotenv, set_key
 from rich.console import Console
+from rich.live import Live
 from rich.panel import Panel
 from rich.progress import (
     BarColumn,
@@ -25,6 +30,7 @@ from rich.progress import (
     TaskProgressColumn,
     TextColumn,
 )
+from rich.prompt import IntPrompt, Prompt
 from rich.table import Table
 
 from .models import SUPPORTED_LANGUAGES, XCStringsFile
@@ -36,12 +42,205 @@ from .translator import (
     resolve_model,
 )
 
+# Load .env from the current working directory (searches upward) so that keys
+# saved by the interactive setup are picked up on subsequent runs.
+load_dotenv()
+
 app = typer.Typer(
     name="xcstrings",
     help="Translate Apple Localizable.xcstrings files using AI (Anthropic/OpenAI/Gemini)",
     add_completion=False,
 )
 console = Console()
+
+# Provider metadata used by the interactive API-key setup. Ordered for the menu.
+PROVIDERS = [
+    {
+        "key": "anthropic",
+        "label": "Anthropic (Claude)",
+        "env": "ANTHROPIC_API_KEY",
+        "default_model": "sonnet",
+        "url": "https://console.anthropic.com/",
+    },
+    {
+        "key": "openai",
+        "label": "OpenAI (GPT)",
+        "env": "OPENAI_API_KEY",
+        "default_model": "gpt-5.4",
+        "url": "https://platform.openai.com/api-keys",
+    },
+    {
+        "key": "google-gla",
+        "label": "Google (Gemini)",
+        "env": "GEMINI_API_KEY",
+        "default_model": "gemini-2.5-flash",
+        "url": "https://aistudio.google.com/apikey",
+    },
+    {
+        "key": "openrouter",
+        "label": "OpenRouter",
+        "env": "OPENROUTER_API_KEY",
+        "default_model": "or-sonnet",
+        "url": "https://openrouter.ai/keys",
+    },
+]
+PROVIDER_BY_KEY = {p["key"]: p for p in PROVIDERS}
+
+
+def _provider_for_model(resolved: str) -> str:
+    """Provider key (e.g. 'anthropic') for a resolved 'provider:model' string."""
+    return resolved.split(":", 1)[0]
+
+
+def _save_env_key(env_var: str, value: str) -> None:
+    """Persist a key to ./.env and export it for the current process."""
+    os.environ[env_var] = value
+    env_path = Path.cwd() / ".env"
+    set_key(str(env_path), env_var, value)
+
+
+def _provider_menu_panel(selected: int) -> Panel:
+    """Render the provider picker with the current row highlighted."""
+    table = Table(show_header=False, box=None, pad_edge=False)
+    table.add_column(width=2)
+    table.add_column("Provider", no_wrap=True)
+    table.add_column("Default model")
+    for i, p in enumerate(PROVIDERS):
+        if i == selected:
+            table.add_row(
+                "[cyan]❯[/cyan]",
+                f"[bold cyan]{p['label']}[/bold cyan]",
+                f"[cyan]{p['default_model']}[/cyan]",
+            )
+        else:
+            table.add_row("", p["label"], f"[green]{p['default_model']}[/green]")
+    return Panel(
+        table,
+        title="[bold]No API key found — choose a provider[/bold]",
+        subtitle="[dim]↑/↓ move · enter select[/dim]",
+        border_style="cyan",
+        padding=(1, 2),
+    )
+
+
+def _render_provider_menu_numbered() -> dict:
+    """Fallback numbered picker for non-TTY environments (e.g. tests, pipes)."""
+    table = Table(show_header=True, header_style="bold cyan", box=None, pad_edge=False)
+    table.add_column("#", style="cyan", justify="right")
+    table.add_column("Provider", style="bold")
+    table.add_column("Default model", style="green")
+    for i, p in enumerate(PROVIDERS, start=1):
+        table.add_row(str(i), p["label"], p["default_model"])
+    console.print(
+        Panel(
+            table,
+            title="[bold]No API key found — choose a provider[/bold]",
+            border_style="cyan",
+            padding=(1, 2),
+        )
+    )
+    choice = IntPrompt.ask(
+        "[cyan]Select provider[/cyan]",
+        choices=[str(i) for i in range(1, len(PROVIDERS) + 1)],
+        default=1,
+    )
+    return PROVIDERS[choice - 1]
+
+
+def _render_provider_menu() -> dict:
+    """
+    Arrow-key provider picker. Use ↑/↓ (or j/k) to move, Enter to select; the
+    number keys jump straight to a row. Falls back to a numbered prompt when
+    stdin is not an interactive TTY.
+    """
+    if not sys.stdin.isatty():
+        return _render_provider_menu_numbered()
+
+    selected = 0
+    with Live(
+        _provider_menu_panel(selected),
+        console=console,
+        auto_refresh=False,
+        transient=False,
+    ) as live:
+        while True:
+            key = readchar.readkey()
+            if key in (readchar.key.UP, "k"):
+                selected = (selected - 1) % len(PROVIDERS)
+            elif key in (readchar.key.DOWN, "j"):
+                selected = (selected + 1) % len(PROVIDERS)
+            elif key in (readchar.key.ENTER, "\r", "\n"):
+                break
+            elif key in (readchar.key.CTRL_C, "\x03"):
+                raise KeyboardInterrupt
+            elif key.isdigit() and 1 <= int(key) <= len(PROVIDERS):
+                selected = int(key) - 1
+                live.update(_provider_menu_panel(selected), refresh=True)
+                break
+            live.update(_provider_menu_panel(selected), refresh=True)
+    console.print(f"[green]✓[/green] {PROVIDERS[selected]['label']}\n")
+    return PROVIDERS[selected]
+
+
+def _prompt_api_key(provider: dict) -> None:
+    """Show a clean input box for the provider's API key and save it."""
+    body = (
+        f"[bold]{provider['label']}[/bold] needs an API key.\n\n"
+        f"Environment variable: [cyan]{provider['env']}[/cyan]\n"
+        f"Get a key at: [blue underline]{provider['url']}[/blue underline]\n\n"
+        f"It will be saved to [cyan].env[/cyan] for future runs."
+    )
+    console.print(
+        Panel(
+            body,
+            title="[bold]API key required[/bold]",
+            border_style="cyan",
+            padding=(1, 2),
+        )
+    )
+    key = ""
+    while not key.strip():
+        key = Prompt.ask(
+            f"[cyan]Enter your {provider['label']} API key[/cyan]", password=True
+        )
+        if not key.strip():
+            console.print("[yellow]Key cannot be empty.[/yellow]")
+    _save_env_key(provider["env"], key.strip())
+    console.print("[green]✓[/green] Saved to .env\n")
+
+
+def _ensure_provider_and_key(
+    model: str | None, *, require_key: bool = True
+) -> tuple[str, str]:
+    """
+    Resolve the model and make sure the matching provider key is available,
+    prompting interactively when running in a TTY.
+
+    Returns the concrete ``(model, resolved)`` to use for translation.
+    """
+    interactive = require_key and sys.stdin.isatty()
+
+    # No model specified: use the default provider if its key is present,
+    # otherwise offer the provider menu (interactive only).
+    if model is None:
+        if os.environ.get("ANTHROPIC_API_KEY") or not interactive:
+            return "sonnet", resolve_model("sonnet")
+        provider = _render_provider_menu()
+        if not os.environ.get(provider["env"]):
+            _prompt_api_key(provider)
+        model = provider["default_model"]
+        return model, resolve_model(model)
+
+    # Model specified: derive the provider from it and prompt for that key.
+    resolved = resolve_model(model)
+    provider_key = _provider_for_model(resolved)
+    provider = PROVIDER_BY_KEY.get(provider_key)
+    if provider is None:
+        # Unknown provider: let pydantic-ai handle validation downstream.
+        return model, resolved
+    if not os.environ.get(provider["env"]) and interactive:
+        _prompt_api_key(provider)
+    return model, resolved
 
 
 def _canonicalize_bcp47_tag(tag: str) -> str:
@@ -372,13 +571,13 @@ def translate(
         ),
     ] = None,
     model: Annotated[
-        str,
+        str | None,
         typer.Option(
             "-m",
             "--model",
-            help="Model: sonnet, gpt-5, gemini-2.5-flash, openrouter:vendor/model (or provider:model)",
+            help="Model: sonnet, gpt-5, gemini-2.5-flash, openrouter:vendor/model (or provider:model). If omitted, uses sonnet when an Anthropic key is available; otherwise prompts to choose a provider.",
         ),
-    ] = "sonnet",
+    ] = None,
     batch_size: Annotated[
         int, typer.Option("-b", "--batch-size", help="Strings per API call")
     ] = 25,
@@ -482,13 +681,19 @@ def translate(
 
     # Validate model (accept aliases or provider:model format). Every known alias
     # and every provider:model string resolves to a value containing ":"; anything
-    # without one is an unrecognised shorthand (likely a typo).
-    resolved = resolve_model(model)
-    if resolved not in MODEL_PRICING and ":" not in resolved:
-        console.print(f"[red]Error:[/red] Unknown model: {model}")
-        console.print(f"Shortcuts: {', '.join(MODEL_ALIASES.keys())}")
-        console.print("Or use provider:model format (e.g., openai:gpt-4o)")
-        raise typer.Exit(1)
+    # without one is an unrecognised shorthand (likely a typo). Only validate when
+    # the user explicitly passed a model.
+    if model is not None:
+        resolved = resolve_model(model)
+        if resolved not in MODEL_PRICING and ":" not in resolved:
+            console.print(f"[red]Error:[/red] Unknown model: {model}")
+            console.print(f"Shortcuts: {', '.join(MODEL_ALIASES.keys())}")
+            console.print("Or use provider:model format (e.g., openai:gpt-4o)")
+            raise typer.Exit(1)
+
+    # Resolve the provider/model and ensure the matching API key is available,
+    # prompting interactively when one is missing. Dry runs need no key.
+    model, resolved = _ensure_provider_and_key(model, require_key=not dry_run)
 
     common = {
         "languages": target_langs,
@@ -500,7 +705,7 @@ def translate(
         "dry_run": dry_run,
         "app_context": app_context,
         "fill_missing": fill_missing,
-        "fetch_live_pricing": not no_fetch,
+        "fetch_live_pricing": not dry_run and not no_fetch,
     }
 
     # Single file: preserve original behavior (exit 1 on failure).
