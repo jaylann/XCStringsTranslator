@@ -303,12 +303,14 @@ class TestProviderKeySetup:
         monkeypatch.setattr("sys.stdin.isatty", lambda: False)
         model, resolved = _ensure_provider_and_key(None)
         assert model == "sonnet"
+        assert resolved == "anthropic:claude-sonnet-4-6"
 
     def test_ensure_dry_run_skips_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         monkeypatch.setattr("sys.stdin.isatty", lambda: True)
         # require_key=False (dry run) must not prompt even on a TTY.
         model, resolved = _ensure_provider_and_key("gpt-5.4", require_key=False)
+        assert model == "gpt-5.4"
         assert resolved == "openai:gpt-5.4"
 
     def _feed_keys(self, monkeypatch: pytest.MonkeyPatch, keys: list[str]) -> None:

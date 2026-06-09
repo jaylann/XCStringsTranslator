@@ -575,7 +575,7 @@ def translate(
         typer.Option(
             "-m",
             "--model",
-            help="Model: sonnet, gpt-5, gemini-2.5-flash, openrouter:vendor/model (or provider:model). Default: sonnet",
+            help="Model: sonnet, gpt-5, gemini-2.5-flash, openrouter:vendor/model (or provider:model). If omitted, uses sonnet when an Anthropic key is available; otherwise prompts to choose a provider.",
         ),
     ] = None,
     batch_size: Annotated[
@@ -705,7 +705,7 @@ def translate(
         "dry_run": dry_run,
         "app_context": app_context,
         "fill_missing": fill_missing,
-        "fetch_live_pricing": not no_fetch,
+        "fetch_live_pricing": not dry_run and not no_fetch,
     }
 
     # Single file: preserve original behavior (exit 1 on failure).
